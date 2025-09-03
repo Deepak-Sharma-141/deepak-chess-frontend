@@ -596,6 +596,89 @@
         </div>
     </div>
 
+    <!-- Add this button to your HTML for testing -->
+<div style="position: fixed; top: 10px; right: 10px; background: white; padding: 10px; border: 1px solid #ccc; z-index: 9999;">
+    <h4>Backend Test</h4>
+    <button onclick="testBackend()">Test Backend Connection</button>
+    <button onclick="testWebSocket()">Test WebSocket</button>
+    <div id="testResults" style="margin-top: 10px; max-height: 200px; overflow-y: auto; font-size: 12px;"></div>
+</div>
+
+<script>
+// Backend testing functions
+const BACKEND_URL1 = 'https://chess-backend-hu0h.onrender.com/api';
+
+async function testBackend() {
+    const resultsDiv = document.getElementById('testResults');
+    resultsDiv.innerHTML = '<p>Testing backend...</p>';
+    
+    const endpoints = [
+        { name: 'API Root', url: BACKEND_URL1 },
+        { name: 'Health Check', url: BACKEND_URL1 + '/health' },
+        { name: 'CORS Test', url: BACKEND_URL1 + '/test-cors' }
+    ];
+    
+    let results = [];
+    
+    for (const endpoint of endpoints) {
+        try {
+            const response = await fetch(endpoint.url, {
+                method: 'GET',
+                mode: 'cors',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                results.push(`✅ ${endpoint.name}: ${response.status} - ${data.message || 'OK'}`);
+            } else {
+                results.push(`❌ ${endpoint.name}: ${response.status} - ${response.statusText}`);
+            }
+        } catch (error) {
+            results.push(`❌ ${endpoint.name}: ${error.message}`);
+        }
+    }
+    
+    resultsDiv.innerHTML = results.map(r => `<p>${r}</p>`).join('');
+}
+
+function testWebSocket() {
+    const resultsDiv = document.getElementById('testResults');
+    resultsDiv.innerHTML = '<p>Testing WebSocket...</p>';
+    
+    try {
+        const socket = new SockJS(BACKEND_URL + '/chess-websocket');
+        
+        socket.onopen = () => {
+            resultsDiv.innerHTML += '<p>✅ SockJS connection opened</p>';
+            
+            const stompClient = Stomp.over(socket);
+            stompClient.connect({}, 
+                (frame) => {
+                    resultsDiv.innerHTML += '<p>✅ STOMP connected successfully</p>';
+                    stompClient.disconnect();
+                },
+                (error) => {
+                    resultsDiv.innerHTML += `<p>❌ STOMP connection failed: ${error}</p>`;
+                }
+            );
+        };
+        
+        socket.onclose = (event) => {
+            resultsDiv.innerHTML += `<p>🔌 Socket closed: ${event.code} - ${event.reason}</p>`;
+        };
+        
+        socket.onerror = (error) => {
+            resultsDiv.innerHTML += `<p>❌ Socket error: ${error}</p>`;
+        };
+        
+    } catch (error) {
+        resultsDiv.innerHTML += `<p>❌ WebSocket test failed: ${error.message}</p>`;
+    }
+}
+</script>
+
+
     <!-- Include SockJS and STOMP for WebSocket communication -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
