@@ -606,8 +606,7 @@
 
 <script>
 // Backend testing functions
-// Enhanced debugging script for your frontend
-const BACKEND_URL1 = 'https://chess-backend-hu0h.onrender.com/api';
+<!-- const BACKEND_URL1 = 'https://chess-backend-hu0h.onrender.com/api';
 
 async function testBackend() {
     const resultsDiv = document.getElementById('testResults');
@@ -615,9 +614,9 @@ async function testBackend() {
     
     const endpoints = [
         { name: 'Root (no /api)', url: 'https://chess-backend-hu0h.onrender.com/' },
-        { name: 'API Root', url: BACKEND_URL },
-        { name: 'Health Check', url: BACKEND_URL + '/health' },
-        { name: 'CORS Test', url: BACKEND_URL + '/test-cors' }
+        { name: 'API Root', url: BACKEND_URL1 },
+        { name: 'Health Check', url: BACKEND_URL1 + '/health' },
+        { name: 'CORS Test', url: BACKEND_URL1 + '/test-cors' }
     ];
     
     let results = ['<h4>Backend Connection Test Results:</h4>'];
@@ -662,7 +661,7 @@ function testWebSocket() {
     const resultsDiv = document.getElementById('testResults');
     resultsDiv.innerHTML = '<p>Testing WebSocket connection...</p>';
     
-    const wsUrl = BACKEND_URL + '/chess-websocket';
+    const wsUrl = BACKEND_URL1 + '/chess-websocket';
     console.log(`Testing WebSocket: ${wsUrl}`);
     
     try {
@@ -718,14 +717,14 @@ function testWebSocket() {
 
 // Test both on page load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Frontend loaded, backend URL:', BACKEND_URL);
+    console.log('Frontend loaded, backend URL:', BACKEND_URL1);
     
     // Add auto-test after 2 seconds
     setTimeout(() => {
         console.log('Auto-testing backend connection...');
         testBackend();
     }, 2000);
-});
+}); -->
 </script>
 
 
