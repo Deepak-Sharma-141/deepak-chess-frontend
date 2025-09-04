@@ -41,26 +41,33 @@ class ChessGame {
     connectToServer() {
         return new Promise((resolve, reject) => {
             try {
+                console.log('Attempting to connect to:', BACKEND_URL + '/chess-websocket');
                 const socket = new SockJS(BACKEND_URL + '/chess-websocket');
                 this.stompClient = Stomp.over(socket);
+                
+                // Enable debug logging
+                this.stompClient.debug = (str) => {
+                    console.log('STOMP Debug:', str);
+                };
                 
                 this.updateGameStatus('Connecting to server...', 'connecting');
                 
                 this.stompClient.connect({}, 
                     (frame) => {
-                        console.log('Connected: ' + frame);
+                        console.log('Connected successfully:', frame);
                         this.connected = true;
                         this.updateGameStatus('Connected to server', 'connected');
                         resolve();
                     },
                     (error) => {
-                        console.log('Connection error: ' + error);
+                        console.error('Connection error:', error);
                         this.connected = false;
                         this.updateGameStatus('Failed to connect to server', 'disconnected');
                         reject(error);
                     }
                 );
             } catch (error) {
+                console.error('Failed to create WebSocket connection:', error);
                 this.updateGameStatus('Failed to connect to server', 'disconnected');
                 reject(error);
             }
@@ -84,17 +91,34 @@ class ChessGame {
     }
 
     subscribeToGame(gameId) {
-        if (!this.stompClient || !this.connected) return;
+        if (!this.stompClient || !this.connected) {
+            console.error('Cannot subscribe to game: stompClient=', !!this.stompClient, 'connected=', this.connected);
+            return;
+        }
 
+        console.log('Subscribing to game channels for gameId:', gameId);
+        
         this.stompClient.subscribe(`/topic/game/${gameId}`, (message) => {
-            const gameMessage = JSON.parse(message.body);
-            this.handleGameMessage(gameMessage);
+            console.log('Received game message:', message.body);
+            try {
+                const gameMessage = JSON.parse(message.body);
+                this.handleGameMessage(gameMessage);
+            } catch (error) {
+                console.error('Error parsing game message:', error, message.body);
+            }
         });
 
         this.stompClient.subscribe(`/topic/game/${gameId}/player/${this.playerId}`, (message) => {
-            const gameMessage = JSON.parse(message.body);
-            this.handlePlayerMessage(gameMessage);
+            console.log('Received player message:', message.body);
+            try {
+                const gameMessage = JSON.parse(message.body);
+                this.handlePlayerMessage(gameMessage);
+            } catch (error) {
+                console.error('Error parsing player message:', error, message.body);
+            }
         });
+        
+        console.log('Successfully subscribed to game channels');
     }
 
     handleGameMessage(message) {
@@ -102,6 +126,10 @@ class ChessGame {
         switch (message.type) {
             case 'move':
                 this.handleRemoteMove(message);
+                break;
+            case 'moveError':
+                console.error('Move error from server:', message.error);
+                this.updateGameInfo(`Move error: ${message.error}`);
                 break;
             case 'resign':
                 // Opponent resigned
@@ -141,7 +169,7 @@ class ChessGame {
             case 'playerJoined':
                 this.updateGameInfo(`${message.playerName} joined the game`);
                 if (message.gameState) {
-                    this.updateFromGameState?.(message.gameState);
+                    this.updateFromGameState(message.gameState);
                 }
                 break;
             case 'playerDisconnected':
@@ -150,12 +178,14 @@ class ChessGame {
             case 'gameStart':
                 this.updateGameInfo('Game started! Both players connected.');
                 if (message.gameState) {
-                    this.updateFromGameState?.(message.gameState);
+                    this.updateFromGameState(message.gameState);
                 }
                 break;
             case 'gameEnd':
                 this.handleGameEnd(message.gameState);
                 break;
+            default:
+                console.log('Unknown message type:', message.type);
         }
     }
 
@@ -362,12 +392,7 @@ class ChessGame {
             const move = message.move;
             this.applyMoveFromServer(move);
             if (message.gameState) {
-                this.bothPlayersReady = !!(message.gameState.whitePlayer && message.gameState.blackPlayer);
-                this.currentPlayer = message.gameState.currentTurn;
-                this.gameStarted = message.gameState.gameStatus === 'active' && this.bothPlayersReady;
-                if (this.timerEnabled && this.gameStarted && !this.timerInterval) this.startTimer();
-                this.updateStatus();
-                this.updateControlStates();
+                this.updateFromGameState(message.gameState);
             }
         }
     }
@@ -383,10 +408,69 @@ class ChessGame {
         this.updateDisplay();
     }
 
+    updateFromGameState(gameState) {
+        if (!gameState) return;
+        
+        // Update game state from server
+        this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
+        this.currentPlayer = gameState.currentTurn;
+        this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
+        this.gameOver = gameState.gameStatus === 'finished';
+        
+        // Update board state if provided
+        if (gameState.board) {
+            this.board = gameState.board;
+        }
+        
+        // Update captured pieces if provided
+        if (gameState.capturedPieces) {
+            this.capturedPieces = gameState.capturedPieces;
+        }
+        
+        // Update move history if provided
+        if (gameState.moveHistory) {
+            this.moveHistory = gameState.moveHistory;
+        }
+        
+        // Update kings position if provided
+        if (gameState.kings) {
+            this.kings = gameState.kings;
+        }
+        
+        // Start timer if game is active and timer is enabled
+        if (this.timerEnabled && this.gameStarted && !this.timerInterval) {
+            this.startTimer();
+        }
+        
+        this.updateStatus();
+        this.updateControlStates();
+        this.updateDisplay();
+    }
+
     sendMove(fromRow, fromCol, toRow, toCol) {
-        if (!this.isMultiplayer || !this.stompClient || !this.connected) return;
+        if (!this.isMultiplayer || !this.stompClient || !this.connected) {
+            console.log('Cannot send move: multiplayer=', this.isMultiplayer, 'stompClient=', !!this.stompClient, 'connected=', this.connected);
+            return;
+        }
+        
+        if (!this.bothPlayersReady) {
+            this.updateGameInfo('Waiting for opponent to join...');
+            return;
+        }
+        
+        if (this.playerColor !== this.currentPlayer) {
+            this.updateGameInfo('It\'s not your turn!');
+            return;
+        }
+        
         const piece = this.board[fromRow][fromCol];
         const capturedPiece = this.board[toRow][toCol];
+        
+        if (!piece || piece.color !== this.playerColor) {
+            this.updateGameInfo('You can only move your own pieces!');
+            return;
+        }
+        
         const move = {
             fromRow, fromCol, toRow, toCol,
             playerId: this.playerId,
@@ -396,7 +480,9 @@ class ChessGame {
             notation: this.generateNotation(fromRow, fromCol, toRow, toCol),
             timestamp: new Date().toISOString()
         };
+        
         const moveMessage = { type: 'move', playerId: this.playerId, move };
+        console.log('Sending move:', moveMessage);
         this.stompClient.send(`/app/game/${this.gameId}/move`, {}, JSON.stringify(moveMessage));
     }
 
@@ -522,36 +608,69 @@ class ChessGame {
 
     handleSquareClick(row, col) {
         if (this.gameOver || this.pendingPromotion) return;
+        
+        // Multiplayer validation
         if (this.isMultiplayer) {
-            if (!this.bothPlayersReady) { this.updateGameInfo('Waiting for opponent to join...'); return; }
-            if (this.playerColor !== this.currentPlayer) { this.updateGameInfo('It\'s not your turn!'); return; }
+            if (!this.bothPlayersReady) { 
+                this.updateGameInfo('Waiting for opponent to join...'); 
+                return; 
+            }
+            if (this.playerColor !== this.currentPlayer) { 
+                this.updateGameInfo('It\'s not your turn!'); 
+                return; 
+            }
         }
+        
+        // Local game timer setup
         if (!this.isMultiplayer) {
             const enableTimer = document.getElementById('enableRightTimer');
             const timerSelect = document.getElementById('rightTimerSelect');
             if (enableTimer && enableTimer.checked) {
-                if (!timerSelect || !timerSelect.value) { this.updateGameInfo('Please select a timer duration before playing.'); return; }
-                if (!this.timerEnabled) { this.setupTimer(); }
+                if (!timerSelect || !timerSelect.value) { 
+                    this.updateGameInfo('Please select a timer duration before playing.'); 
+                    return; 
+                }
+                if (!this.timerEnabled) { 
+                    this.setupTimer(); 
+                }
             }
         }
+        
         const piece = this.board[row][col];
+        
         if (this.selectedSquare) {
             const [selectedRow, selectedCol] = this.selectedSquare;
-            if (row === selectedRow && col === selectedCol) { this.clearSelection(); return; }
+            
+            // Deselect if clicking the same square
+            if (row === selectedRow && col === selectedCol) { 
+                this.clearSelection(); 
+                return; 
+            }
+            
+            // Try to make a move
             if (this.isValidMove(selectedRow, selectedCol, row, col)) {
-                if (this.isMultiplayer) { this.sendMove(selectedRow, selectedCol, row, col); }
-                else { this.makeMove(selectedRow, selectedCol, row, col); }
+                if (this.isMultiplayer) { 
+                    this.sendMove(selectedRow, selectedCol, row, col); 
+                } else { 
+                    this.makeMove(selectedRow, selectedCol, row, col); 
+                }
                 this.clearSelection();
             } else {
+                // Invalid move - try to select a new piece
                 if (piece && piece.color === this.currentPlayer) {
-                    if (!this.isMultiplayer || piece.color === this.playerColor) this.selectSquare(row, col);
+                    if (!this.isMultiplayer || piece.color === this.playerColor) {
+                        this.selectSquare(row, col);
+                    }
                 } else {
                     this.clearSelection();
                 }
             }
         } else {
+            // No piece selected - try to select a piece
             if (piece && piece.color === this.currentPlayer) {
-                if (!this.isMultiplayer || piece.color === this.playerColor) this.selectSquare(row, col);
+                if (!this.isMultiplayer || piece.color === this.playerColor) {
+                    this.selectSquare(row, col);
+                }
             }
         }
     }
