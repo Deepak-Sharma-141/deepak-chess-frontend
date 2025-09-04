@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Game - Multiplayer</title>
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Security headers -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://chess-backend-hu0h.onrender.com; connect-src 'self' https://chess-backend-hu0h.onrender.com wss://chess-backend-hu0h.onrender.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+    
+    <!-- Preconnect to external domains for better performance -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://chess-backend-hu0h.onrender.com">
 </head>
 <body>
     <div class="game-container">
@@ -23,7 +33,11 @@
         <!-- Game Status Panel -->
         <div class="game-status-panel" id="gameStatusPanel">
             <div class="connection-status" id="connectionStatus">Local Game Mode</div>
-              <div class="game-info-panel" id="gameInfoPanel"></div>
+            <div class="game-info-panel" id="gameInfoPanel"></div>
+            <div class="security-warning" id="securityWarning" style="display: none;">
+                <span class="warning-icon">⚠️</span>
+                <span class="warning-text">Security Warning: Mixed content detected. For best experience, use HTTPS.</span>
+            </div>
         </div>
 
         <!-- Game Main Area with Side Timers flanking the board -->

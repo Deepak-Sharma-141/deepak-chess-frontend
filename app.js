@@ -42,6 +42,19 @@ class ChessGame {
         return new Promise((resolve, reject) => {
             try {
                 console.log('Attempting to connect to:', BACKEND_URL + '/chess-websocket');
+                
+                // Check if we're in a secure context
+                if (location.protocol === 'https:' && BACKEND_URL.startsWith('https:')) {
+                    console.log('Secure connection detected');
+                    this.hideSecurityWarning();
+                } else if (location.protocol === 'http:' && BACKEND_URL.startsWith('http:')) {
+                    console.log('HTTP connection detected');
+                    this.hideSecurityWarning();
+                } else {
+                    console.warn('Mixed content detected - this may cause security warnings');
+                    this.showSecurityWarning();
+                }
+                
                 const socket = new SockJS(BACKEND_URL + '/chess-websocket');
                 this.stompClient = Stomp.over(socket);
                 
@@ -52,23 +65,45 @@ class ChessGame {
                 
                 this.updateGameStatus('Connecting to server...', 'connecting');
                 
+                // Set connection timeout
+                const connectionTimeout = setTimeout(() => {
+                    if (!this.connected) {
+                        console.error('Connection timeout');
+                        this.updateGameStatus('Connection timeout - server may be down', 'disconnected');
+                        reject(new Error('Connection timeout'));
+                    }
+                }, 10000); // 10 second timeout
+                
                 this.stompClient.connect({}, 
                     (frame) => {
+                        clearTimeout(connectionTimeout);
                         console.log('Connected successfully:', frame);
                         this.connected = true;
                         this.updateGameStatus('Connected to server', 'connected');
                         resolve();
                     },
                     (error) => {
+                        clearTimeout(connectionTimeout);
                         console.error('Connection error:', error);
                         this.connected = false;
-                        this.updateGameStatus('Failed to connect to server', 'disconnected');
+                        
+                        // Provide more specific error messages
+                        let errorMessage = 'Failed to connect to server';
+                        if (error.includes('timeout')) {
+                            errorMessage = 'Connection timeout - server may be down';
+                        } else if (error.includes('CORS')) {
+                            errorMessage = 'CORS error - check server configuration';
+                        } else if (error.includes('Mixed Content')) {
+                            errorMessage = 'Mixed content error - use HTTPS';
+                        }
+                        
+                        this.updateGameStatus(errorMessage, 'disconnected');
                         reject(error);
                     }
                 );
             } catch (error) {
                 console.error('Failed to create WebSocket connection:', error);
-                this.updateGameStatus('Failed to connect to server', 'disconnected');
+                this.updateGameStatus('Failed to create connection', 'disconnected');
                 reject(error);
             }
         });
@@ -292,6 +327,20 @@ class ChessGame {
         infoElement.textContent = info;
     }
 
+    showSecurityWarning() {
+        const warningElement = document.getElementById('securityWarning');
+        if (warningElement) {
+            warningElement.style.display = 'flex';
+        }
+    }
+
+    hideSecurityWarning() {
+        const warningElement = document.getElementById('securityWarning');
+        if (warningElement) {
+            warningElement.style.display = 'none';
+        }
+    }
+
     async createMultiplayerGame() {
         const playerName = document.getElementById('playerNameInput').value.trim();
         if (!playerName) {
@@ -371,13 +420,26 @@ class ChessGame {
     handleGameJoined(gameState) {
         this.isMultiplayer = true;
         this.gameId = gameState.gameId;
+        
+        // Hide timer controls in multiplayer mode
         const timerControls = document.querySelector('.timer-controls');
         if (timerControls) timerControls.style.display = 'none';
-        this.timerEnabled = true;
-        this.timePerPlayer = 10 * 60;
+        
+        // Don't automatically enable timer in multiplayer - let players choose
+        // Only set timer if it was already enabled locally
+        const enableTimer = document.getElementById('enableRightTimer');
+        if (enableTimer && enableTimer.checked) {
+            this.timerEnabled = true;
+            this.timePerPlayer = parseInt(document.getElementById('rightTimerSelect').value) || 10 * 60;
+        } else {
+            this.timerEnabled = false;
+            this.timePerPlayer = 10 * 60; // Default value but not enabled
+        }
+        
         this.whiteTimeLeft = this.timePerPlayer;
         this.blackTimeLeft = this.timePerPlayer;
         this.updateTimerDisplay();
+        
         if (gameState.whitePlayer && gameState.whitePlayer.id === this.playerId) this.playerColor = 'white';
         else if (gameState.blackPlayer && gameState.blackPlayer.id === this.playerId) this.playerColor = 'black';
         this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
@@ -440,6 +502,9 @@ class ChessGame {
         // Start timer if game is active and timer is enabled
         if (this.timerEnabled && this.gameStarted && !this.timerInterval) {
             this.startTimer();
+        } else if (!this.timerEnabled && this.timerInterval) {
+            // Stop timer if it's running but shouldn't be
+            this.stopTimer();
         }
         
         this.updateStatus();
