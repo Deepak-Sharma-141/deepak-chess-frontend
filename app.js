@@ -451,7 +451,6 @@ class ChessGame {
             this.playerColor = 'black';
         }
     }
-    
     console.log('Final player color assignment:', this.playerColor);
     
     // Rest of the method...
@@ -486,6 +485,44 @@ class ChessGame {
         this.moveHistory.push({ player: move.playerColor, notation: move.notation, fullMove: Math.floor(this.moveHistory.length / 2) + 1 });
         this.updateDisplay();
     }
+
+    // Add this method to your frontend ChessGame class
+updateBoardFromServer(serverBoardState) {
+    try {
+        const boardData = JSON.parse(serverBoardState);
+        const serverBoard = boardData.board;
+        
+        // Convert server format to frontend format
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                if (serverBoard[row][col]) {
+                    const [color, type] = serverBoard[row][col].split('_');
+                    this.board[row][col] = { type, color };
+                } else {
+                    this.board[row][col] = null;
+                }
+            }
+        }
+        console.log('Board synced from server');
+    } catch (error) {
+        console.error('Failed to sync board from server:', error);
+    }
+}
+
+    // Modify your updateFromGameState method
+    updateFromGameState(gameState) {
+            if (!gameState) return;
+            
+            // Sync board state from server
+            if (gameState.boardState) {
+                this.updateBoardFromServer(gameState.boardState);
+            }
+            
+            // Rest of your existing code...
+            this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
+            this.currentPlayer = gameState.currentTurn;
+            // ... etc
+        }
 
     updateFromGameState(gameState) {
         if (!gameState) return;
@@ -746,7 +783,13 @@ class ChessGame {
             
             // Rest of the method remains the same...
             const piece = this.board[row][col];
-            
+                console.log('Clicked piece:', piece);
+                console.log('Piece type:', typeof piece);
+                if (piece) {
+                    console.log('Piece color:', piece.color);
+                    console.log('Piece type:', piece.type);
+                }
+                        
             if (this.selectedSquare) {
                 const [selectedRow, selectedCol] = this.selectedSquare;
                 
