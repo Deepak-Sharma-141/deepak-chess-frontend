@@ -1173,12 +1173,11 @@
                     this.playerColor = 'black';
                 }
 
-                if (gameState.gameStatus === 'active' && gameState.whitePlayer && gameState.blackPlayer) {
-                    this.gameStarted = true;
-                    this.startTimer();
-                    this.updateGameInfo(`Game started! You are ${this.playerColor}`);
-                } else {
+                // Do not start the timer yet; wait for the first move event
+                if (gameState.gameStatus === 'active' && (!gameState.whitePlayer || !gameState.blackPlayer)) {
                     this.updateGameInfo(`Waiting for opponent... Share game ID: ${this.gameId}`);
+                } else if (gameState.gameStatus !== 'active') {
+                    this.updateGameInfo('Waiting for game start...');
                 }
             }
 
@@ -1191,6 +1190,10 @@
                     if (message.gameState) {
                         this.currentPlayer = message.gameState.currentTurn;
                         this.updateStatus();
+                        if (!this.gameStarted && this.timerEnabled) {
+                            this.gameStarted = true;
+                            this.startTimer();
+                        }
                     }
                 }
             }
@@ -1406,10 +1409,31 @@
             handleSquareClick(row, col) {
                 if (this.gameOver || this.pendingPromotion) return;
                 
+                // Block moves in multiplayer until game has started (both players joined)
+                if (this.isMultiplayer && !this.gameStarted) {
+                    this.updateGameInfo('Waiting for opponent to join...');
+                    return;
+                }
+                
                 // In multiplayer, only allow moves when it's your turn
                 if (this.isMultiplayer && this.playerColor !== this.currentPlayer) {
                     this.updateGameInfo('It\'s not your turn!');
                     return;
+                }
+                
+                // In local mode, if user chose to use timer, require it to be configured before any move
+                if (!this.isMultiplayer) {
+                    const enableTimer = document.getElementById('enableRightTimer');
+                    const timerSelect = document.getElementById('rightTimerSelect');
+                    if (enableTimer && enableTimer.checked) {
+                        if (!timerSelect || !timerSelect.value) {
+                            this.updateGameInfo('Please select a timer duration before playing.');
+                            return;
+                        }
+                        if (!this.timerEnabled) {
+                            this.setupTimer();
+                        }
+                    }
                 }
                 
                 const piece = this.board[row][col];
@@ -1880,9 +1904,6 @@
 
                 if (!this.isMultiplayer && !this.gameStarted) {
                     this.gameStarted = true; // Start local game timer on first move
-                    if (this.timerEnabled && !this.timerInterval) {
-                        this.startTimer();
-                    }
                 }
                                 
                 // Add move to history
@@ -1982,7 +2003,11 @@
             switchPlayer() {
                 this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
                 if (this.timerEnabled && this.gameStarted) {
-                    this.updateTimerDisplay();
+                    if (!this.timerInterval) {
+                        this.startTimer();
+                    } else {
+                        this.updateTimerDisplay();
+                    }
                 }
             }
 
