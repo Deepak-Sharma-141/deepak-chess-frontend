@@ -596,138 +596,7 @@
         </div>
     </div>
 
-    <!-- Add this button to your HTML for testing -->
-<div style="position: fixed; top: 10px; right: 10px; background: white; padding: 10px; border: 1px solid #ccc; z-index: 9999;">
-    <h4>Backend Test</h4>
-    <button onclick="testBackend()">Test Backend Connection</button>
-    <button onclick="testWebSocket()">Test WebSocket</button>
-    <div id="testResults" style="margin-top: 10px; max-height: 200px; overflow-y: auto; font-size: 12px;"></div>
-</div>
-
-<script>
-// Backend testing functions
-<!-- const BACKEND_URL1 = 'https://chess-backend-hu0h.onrender.com/api';
-
-async function testBackend() {
-    const resultsDiv = document.getElementById('testResults');
-    resultsDiv.innerHTML = '<p>Testing backend connection...</p>';
-    
-    const endpoints = [
-        { name: 'Root (no /api)', url: 'https://chess-backend-hu0h.onrender.com/' },
-        { name: 'API Root', url: BACKEND_URL1 },
-        { name: 'Health Check', url: BACKEND_URL1 + '/health' },
-        { name: 'CORS Test', url: BACKEND_URL1 + '/test-cors' }
-    ];
-    
-    let results = ['<h4>Backend Connection Test Results:</h4>'];
-    
-    for (const endpoint of endpoints) {
-        try {
-            console.log(`Testing: ${endpoint.url}`);
-            
-            const response = await fetch(endpoint.url, {
-                method: 'GET',
-                mode: 'cors',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-            });
-            
-            console.log(`Response status: ${response.status}`);
-            
-            if (response.ok) {
-                const data = await response.json();
-                results.push(`<p style="color: green;">✅ ${endpoint.name}: ${response.status} - ${data.message || 'OK'}</p>`);
-                console.log(`Success:`, data);
-            } else {
-                results.push(`<p style="color: red;">❌ ${endpoint.name}: ${response.status} - ${response.statusText}</p>`);
-            }
-        } catch (error) {
-            console.error(`Error testing ${endpoint.name}:`, error);
-            results.push(`<p style="color: red;">❌ ${endpoint.name}: ${error.message}</p>`);
-            
-            // Check if it's a CORS error
-            if (error.message.includes('CORS') || error.message.includes('fetch')) {
-                results.push(`<p style="color: orange;">   → This looks like a CORS issue</p>`);
-            }
-        }
-    }
-    
-    resultsDiv.innerHTML = results.join('');
-}
-
-function testWebSocket() {
-    const resultsDiv = document.getElementById('testResults');
-    resultsDiv.innerHTML = '<p>Testing WebSocket connection...</p>';
-    
-    const wsUrl = BACKEND_URL1 + '/chess-websocket';
-    console.log(`Testing WebSocket: ${wsUrl}`);
-    
-    try {
-        const socket = new SockJS(wsUrl);
-        let results = ['<h4>WebSocket Test Results:</h4>'];
-        
-        socket.onopen = () => {
-            console.log('SockJS socket opened');
-            results.push('<p style="color: green;">✅ SockJS connection opened</p>');
-            
-            const stompClient = Stomp.over(socket);
-            stompClient.debug = null; // Disable debug to reduce noise
-            
-            stompClient.connect({}, 
-                (frame) => {
-                    console.log('STOMP connected:', frame);
-                    results.push('<p style="color: green;">✅ STOMP connected successfully</p>');
-                    results.push('<p style="color: blue;">🎉 WebSocket connection is working!</p>');
-                    resultsDiv.innerHTML = results.join('');
-                    
-                    // Disconnect after successful test
-                    setTimeout(() => stompClient.disconnect(), 1000);
-                },
-                (error) => {
-                    console.error('STOMP connection failed:', error);
-                    results.push(`<p style="color: red;">❌ STOMP connection failed: ${error}</p>`);
-                    results.push('<p style="color: orange;">   → Check backend CORS configuration</p>');
-                    resultsDiv.innerHTML = results.join('');
-                }
-            );
-        };
-        
-        socket.onclose = (event) => {
-            console.log('Socket closed:', event.code, event.reason);
-            results.push(`<p style="color: blue;">🔌 Socket closed: Code ${event.code} - ${event.reason}</p>`);
-            resultsDiv.innerHTML = results.join('');
-        };
-        
-        socket.onerror = (error) => {
-            console.error('Socket error:', error);
-            results.push(`<p style="color: red;">❌ Socket error occurred</p>`);
-            if (error.code === 1002) {
-                results.push('<p style="color: orange;">   → Code 1002 usually means CORS or server rejection</p>');
-            }
-            resultsDiv.innerHTML = results.join('');
-        };
-        
-    } catch (error) {
-        console.error('WebSocket test failed:', error);
-        resultsDiv.innerHTML = `<p style="color: red;">❌ WebSocket test failed: ${error.message}</p>`;
-    }
-}
-
-// Test both on page load
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Frontend loaded, backend URL:', BACKEND_URL1);
-    
-    // Add auto-test after 2 seconds
-    setTimeout(() => {
-        console.log('Auto-testing backend connection...');
-        testBackend();
-    }, 2000);
-}); -->
-</script>
-
-
+  
     <!-- Include SockJS and STOMP for WebSocket communication -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
@@ -1165,13 +1034,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 for (let row = 0; row < 8; row++) {
                     for (let col = 0; col < 8; col++) {
+
+                        const actualRow =flipBoard ? 7 - row : row;
+                        const actualCol =flipBoard ? 7 -col : col;
+
                         const square = document.createElement('div');
-                        square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
-                        square.dataset.row = row;
-                        square.dataset.col = col;
-                        square.onclick = () => this.handleSquareClick(row, col);
+                        square.className = `square ${(actualRow + actualCol) % 2 === 0 ? 'light' : 'dark'}`;
+                        square.dataset.actualRow = actualRow;
+                        square.dataset.actualCol = actualCol;
+                        square.onclick = () => this.handleSquareClick(actualRow, actualCol);
                         
-                        const piece = this.board[row][col];
+                        const piece = this.board[actualRow][actualCol];
                         if (piece) {
                             const pieceElement = document.createElement('span');
                             pieceElement.className = `piece ${piece.color}`;
@@ -1265,9 +1138,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.clearHighlights();
             }
 
-            highlightSquare(row, col, className) {
-                const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                if (square) square.classList.add(className);
+           highlightSquare(row, col, className) {
+               const square = document.querySelector(`[data-actual-row="${row}"][data-actual-col="${col}"]`);
+                   if (square) square.classList.add(className);
             }
 
             clearHighlights() {
@@ -1444,7 +1317,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                // Add castling moves
+                   if (this.canCastle(row, col, 'kingside')) {
+                      moves.push([row, col + 2]);
+                    }
+                   if (this.canCastle(row, col, 'queenside')) {
+                      moves.push([row, col - 2]);
+                    }
+
                 return moves;
+            }
+
+            canCastle(kingRow, kingCol, side) {
+                 const piece = this.board[kingRow][kingCol];
+                 if (!piece || piece.type !== 'king') return false;
+    
+                 const color = piece.color;
+                 const expectedRow = color === 'white' ? 7 : 0;
+                 const expectedCol = 4;
+    
+                // King must be on starting square
+                if (kingRow !== expectedRow || kingCol !== expectedCol) return false;
+    
+                // King must not be in check
+                const enemyColor = color === 'white' ? 'black' : 'white';
+                if (this.isSquareAttacked(kingRow, kingCol, enemyColor)) return false;
+    
+                const rookCol = side === 'kingside' ? 7 : 0;
+                const rook = this.board[expectedRow][rookCol];
+    
+                // Rook must be present and unmoved
+                 if (!rook || rook.type !== 'rook' || rook.color !== color) return false;
+    
+                   // Path must be clear
+                    const startCol = side === 'kingside' ? kingCol + 1 : rookCol + 1;
+                    const endCol = side === 'kingside' ? rookCol : kingCol;
+    
+                    for (let col = startCol; col < endCol; col++) {
+                        if (this.board[expectedRow][col]) return false;
+                        // Squares king passes through must not be attacked
+                        if (col >= kingCol - 1 && col <= kingCol + 1) {
+                     if (this.isSquareAttacked(expectedRow, col, enemyColor)) return false;
+                     }
+                }
+    
+              return true;
             }
 
             isValidSquare(row, col) {
