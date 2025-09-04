@@ -1159,6 +1159,9 @@ document.addEventListener('DOMContentLoaded', () => {
             renderBoard() {
                 const chessboard = document.getElementById('chessboard');
                 chessboard.innerHTML = '';
+
+                //flip the board function
+                const flipBoard =this.isMultiplayer && this.playerColor === 'black';
                 
                 for (let row = 0; row < 8; row++) {
                     for (let col = 0; col < 8; col++) {
@@ -1251,6 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             selectSquare(row, col) {
+                this.clearHighlights();
                 this.selectedSquare = [row, col];
                 this.highlightSquare(row, col, 'selected');
                 this.highlightValidMoves(row, col);
