@@ -255,6 +255,108 @@
             color: #fff;
         }
 
+        /* Game layout with side timers */
+        .game-main-area {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            margin: 20px 40px;
+            
+        }
+
+        .left-timer-area {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            min-width: 50px;
+            margin-right: 43px;
+        }
+
+        .right-timer-area {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            min-width: 50px;
+            margin-left: 43px;
+        }
+
+        .side-timer {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 10px 15px;   /* reduced padding */
+            text-align: center;
+            box-shadow: 0 5px 12px rgba(0, 0, 0, 0.15);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            min-width: 100px;     /* reduced min width */
+            max-width: 120px;     /* prevents too wide */
+        }
+
+        .side-timer.white-timer {
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            color: #333;
+            border-color: #ddd;
+        }
+
+        .side-timer.black-timer {
+            background: linear-gradient(145deg, #4a4a4a, #2a2a2a);
+            color: #fff;
+            border-color: #666;
+        }
+
+        .side-timer.active {
+            border-color: #ffd700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.6), 0 10px 20px rgba(0, 0, 0, 0.2);
+            animation: timerGlow 2s infinite;
+        }
+
+        .side-timer.low-time {
+            border-color: #ff4444 !important;
+            background: linear-gradient(145deg, #ff6666, #ff4444) !important;
+            color: white !important;
+            animation: timerWarning 1s infinite;
+        }
+
+        .timer-label {
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-bottom: 5px;
+            opacity: 0.7;
+        }
+
+        .timer-display {
+            font-size: 1.3em;   /* smaller like chess.com */
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-shadow: none;
+        }
+
+        .timer-controls {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .timer-controls label {
+            display: block;
+            font-size: 0.8em;
+            margin-bottom: 8px;
+            color: #666;
+        }
+
+        .timer-controls input[type="checkbox"] {
+            margin-right: 5px;
+        }
+
+        .timer-controls select {
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            font-size: 0.8em;
+            margin-top: 5px;
+            width: 100%;
+        }
+
         .chessboard {
             display: grid;
             grid-template-columns: repeat(8, 70px);
@@ -353,6 +455,20 @@
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
+        }
+
+        @keyframes timerGlow {
+            0%, 100% { 
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.6), 0 10px 20px rgba(0, 0, 0, 0.2);
+            }
+            50% { 
+                box-shadow: 0 0 30px rgba(255, 215, 0, 0.9), 0 10px 20px rgba(0, 0, 0, 0.2);
+            }
+        }
+
+        @keyframes timerWarning {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         .game-bottom {
@@ -520,6 +636,54 @@
                 flex-direction: column;
             }
         }
+
+        .timer-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .game-timers {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+            gap: 20px;
+        }
+
+        .timer {
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.1em;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        .white-timer {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .black-timer {
+            background: #333;
+            color: #fff;
+        }
+
+        .timer.active {
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+            animation: timerPulse 1s infinite;
+        }
+
+        .timer.low-time {
+            background-color: #ff4444 !important;
+            color: white !important;
+        }
+
+        @keyframes timerPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
     </style>
 </head>
 <body>
@@ -537,8 +701,28 @@
         <!-- Game Status Panel -->
         <div class="game-status-panel" id="gameStatusPanel">
             <div class="connection-status" id="connectionStatus">Local Game Mode</div>
-            <div class="game-info-panel" id="gameInfoPanel"></div>
+              <div class="game-info-panel" id="gameInfoPanel"></div>
         </div>
+
+         <!-- Game Main Area with Side Timers -->
+            <div class="game-main-area">
+                <!-- Left Timer -->
+                    <div class="left-timer-area">
+                            <div class="side-timer white-timer" id="leftTimer">
+                                <div class="timer-label">White Player</div>
+                                <div class="timer-display" id="leftTimerDisplay">10:00</div>
+                            
+                            </div>
+                    <!-- Right Timer -->
+                            <div class="right-timer-area">
+                                <div class="side-timer black-timer" id="rightTimer">
+                                    <div class="timer-label">Black Player</div>
+                                    <div class="timer-display" id="rightTimerDisplay">10:00</div>
+                                </div>
+                         </div>
+                     </div>
+                </div>
+
 
         <!-- Multiplayer Menu Modal -->
         <div class="multiplayer-modal" id="multiplayerModal" style="display: none;">
@@ -565,6 +749,18 @@
         </div>
 
         <div class="chessboard" id="chessboard"></div>
+
+        <div class="timer-controls">
+                        <label>
+                            <input type="checkbox" id="enableRightTimer"> Enable Timer
+                        </label>
+                        <select id="rightTimerSelect">
+                            <option value="300">5 minutes</option>
+                            <option value="600" selected>10 minutes</option>
+                            <option value="900">15 minutes</option>
+                            <option value="1800">30 minutes</option>
+                        </select>
+                    </div>
         
         <div class="status" id="gameStatus"></div>
         
@@ -596,6 +792,9 @@
         </div>
     </div>
 
+    <!-- Add this after the existing controls div -->
+
+
   
     <!-- Include SockJS and STOMP for WebSocket communication -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
@@ -616,6 +815,14 @@
                 this.moveHistory = [];
                 this.lastMove = null;
                 this.pendingPromotion = null;
+
+                //timer properties
+                this.timerEnabled = false;
+                this.timePerPlayer = 10 * 60; // 10 minutes default
+                this.whiteTimeLeft = this.timePerPlayer;
+                this.blackTimeLeft = this.timePerPlayer;
+                this.timerInterval = null;
+                this.gameStarted = false;
                 
                 // Multiplayer properties
                 this.isMultiplayer = false;
@@ -722,6 +929,83 @@
                         this.handleGameEnd(message.gameState);
                         break;
                 }
+            }
+
+            setupTimer() {
+                const enableTimer = document.getElementById('enableRightTimer');
+                const timerSelect = document.getElementById('rightTimerSelect');
+                
+                this.timerEnabled = !!(enableTimer && enableTimer.checked);
+                if (this.timerEnabled && timerSelect) {
+                    this.timePerPlayer = parseInt(timerSelect.value);
+                    this.whiteTimeLeft = this.timePerPlayer;
+                    this.blackTimeLeft = this.timePerPlayer;
+                }
+                this.updateTimerDisplay();
+            }
+
+            startTimer() {
+                if (!this.timerEnabled) return;
+                
+                this.timerInterval = setInterval(() => {
+                    if (this.currentPlayer === 'white') {
+                        this.whiteTimeLeft--;
+                    } else {
+                        this.blackTimeLeft--;
+                    }
+                    
+                    this.updateTimerDisplay();
+                    
+                    // Check for time out
+                    if (this.whiteTimeLeft <= 0) {
+                        this.endGameByTimeout('black');
+                    } else if (this.blackTimeLeft <= 0) {
+                        this.endGameByTimeout('white');
+                    }
+                }, 1000);
+            }
+
+            stopTimer() {
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+            }
+
+            updateTimerDisplay() {
+                const leftTimerContainer = document.getElementById('leftTimer');
+                const rightTimerContainer = document.getElementById('rightTimer');
+                const leftTimerDisplay = document.getElementById('leftTimerDisplay');
+                const rightTimerDisplay = document.getElementById('rightTimerDisplay');
+                
+                if (leftTimerDisplay) {
+                    leftTimerDisplay.textContent = this.formatTime(this.whiteTimeLeft);
+                }
+                if (rightTimerDisplay) {
+                    rightTimerDisplay.textContent = this.formatTime(this.blackTimeLeft);
+                }
+                const shouldHighlightWhite = this.timerEnabled && this.gameStarted && this.currentPlayer === 'white';
+                const shouldHighlightBlack = this.timerEnabled && this.gameStarted && this.currentPlayer === 'black';
+                if (leftTimerContainer) {
+                    leftTimerContainer.classList.toggle('active', shouldHighlightWhite);
+                    leftTimerContainer.classList.toggle('low-time', this.timerEnabled && this.whiteTimeLeft < 60);
+                }
+                if (rightTimerContainer) {
+                    rightTimerContainer.classList.toggle('active', shouldHighlightBlack);
+                    rightTimerContainer.classList.toggle('low-time', this.timerEnabled && this.blackTimeLeft < 60);
+                }
+            }
+
+            formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            endGameByTimeout(winner) {
+                this.gameOver = true;
+                document.getElementById('gameStatus').innerHTML = 
+                    `<span class="checkmate">${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by timeout!</span>`;
             }
 
             handlePlayerMessage(message) {
@@ -871,6 +1155,17 @@
                 this.isMultiplayer = true;
                 this.gameId = gameState.gameId;
                 
+                // Hide timer controls in multiplayer
+                const timerControls = document.querySelector('.timer-controls');
+                if (timerControls) timerControls.style.display = 'none';
+                
+                // Enable timer for multiplayer (always on)
+                this.timerEnabled = true;
+                this.timePerPlayer = 10 * 60; // 10 minutes
+                this.whiteTimeLeft = this.timePerPlayer;
+                this.blackTimeLeft = this.timePerPlayer;
+                this.updateTimerDisplay();
+                
                 // Determine player color
                 if (gameState.whitePlayer && gameState.whitePlayer.id === this.playerId) {
                     this.playerColor = 'white';
@@ -878,9 +1173,9 @@
                     this.playerColor = 'black';
                 }
 
-                this.updateGameInfo(`You are playing as ${this.playerColor}. Game ID: ${this.gameId}`);
-                
-                if (gameState.gameStatus === 'active') {
+                if (gameState.gameStatus === 'active' && gameState.whitePlayer && gameState.blackPlayer) {
+                    this.gameStarted = true;
+                    this.startTimer();
                     this.updateGameInfo(`Game started! You are ${this.playerColor}`);
                 } else {
                     this.updateGameInfo(`Waiting for opponent... Share game ID: ${this.gameId}`);
@@ -1020,9 +1315,38 @@
                 return board;
             }
 
-            initializeGame() {
+           initializeGame() {
                 this.renderBoard();
                 this.updateStatus();
+                this.setupTimer();
+                
+                // Start timer if both conditions are met
+                if (this.timerEnabled && (!this.isMultiplayer || this.gameStarted)) {
+                    this.startTimer();
+                }
+                
+                // Wire up local timer controls
+                const enableTimer = document.getElementById('enableRightTimer');
+                const timerSelect = document.getElementById('rightTimerSelect');
+                if (enableTimer) {
+                    enableTimer.addEventListener('change', () => {
+                        this.stopTimer();
+                        this.setupTimer();
+                        if (this.timerEnabled && this.gameStarted && !this.timerInterval) {
+                            this.startTimer();
+                        }
+                    });
+                }
+                if (timerSelect) {
+                    timerSelect.addEventListener('change', () => {
+                        const wasRunning = !!this.timerInterval;
+                        this.stopTimer();
+                        this.setupTimer();
+                        if (this.timerEnabled && (this.gameStarted || this.isMultiplayer) && wasRunning) {
+                            this.startTimer();
+                        }
+                    });
+                }
             }
 
             renderBoard() {
@@ -1553,7 +1877,14 @@
                     this.showPromotionDialog(piece.color);
                     return;
                 }
-                
+
+                if (!this.isMultiplayer && !this.gameStarted) {
+                    this.gameStarted = true; // Start local game timer on first move
+                    if (this.timerEnabled && !this.timerInterval) {
+                        this.startTimer();
+                    }
+                }
+                                
                 // Add move to history
                 this.addMoveToHistory(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
                 
@@ -1650,6 +1981,9 @@
 
             switchPlayer() {
                 this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+                if (this.timerEnabled && this.gameStarted) {
+                    this.updateTimerDisplay();
+                }
             }
 
             updateDisplay() {
@@ -1798,8 +2132,15 @@
             if (game.isMultiplayer) {
                 game.resetToLocal();
             }
+
+            // Show timer controls in local mode
+            const timerControls = document.querySelector('.timer-controls');
+            if (timerControls) timerControls.style.display = 'flex';
+            
             game = new ChessGame();
         }
+
+        
 
         function showMultiplayerMenu() {
             document.getElementById('multiplayerModal').style.display = 'flex';
