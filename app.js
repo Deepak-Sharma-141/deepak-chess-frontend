@@ -1,5 +1,5 @@
-    //const BACKEND_URL = 'https://chess-backend-hu0h.onrender.com/api';
-      const BACKEND_URL ='deepak-chess-backend-production.up.railway.app';
+      const BACKEND_URL = 'https://chess-backend-hu0h.onrender.com/api';
+    //  const BACKEND_URL ='deepak-chess-backend-production.up.railway.app';
      
 class ChessGame {
     constructor() {
