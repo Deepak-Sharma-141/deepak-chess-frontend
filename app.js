@@ -532,6 +532,9 @@ updateBoardFromServer(serverBoardState) {
         }
 
     updateFromGameState(gameState) {
+        console.log('=== UPDATING FROM GAME STATE ===');
+        console.log('Received gameState:', gameState);
+    
         if (!gameState) return;
         
         // Update game state from server
@@ -539,7 +542,14 @@ updateBoardFromServer(serverBoardState) {
         this.currentPlayer = gameState.currentTurn;
         this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
         this.gameOver = gameState.gameStatus === 'finished';
-        
+
+        console.log('Updated values:');
+        console.log('bothPlayersReady:', this.bothPlayersReady);
+        console.log('currentPlayer:', this.currentPlayer);
+        console.log('gameStarted:', this.gameStarted);
+        console.log('gameOver:', this.gameOver);
+        console.log('================================');
+            
         // Update board state if provided
         if (gameState.board) {
             this.board = gameState.board;
@@ -759,34 +769,41 @@ updateBoardFromServer(serverBoardState) {
         return symbols[piece.color][piece.type];
     }
 
-    handleSquareClick(row, col) {
-            if (this.gameOver || this.pendingPromotion) return;
-            
-            // Multiplayer validation with better debugging
-            if (this.isMultiplayer) {
-                console.log('Multiplayer move attempt:', {
-                    bothPlayersReady: this.bothPlayersReady,
-                    playerColor: this.playerColor,
-                    currentPlayer: this.currentPlayer,
-                    gameStarted: this.gameStarted
-                });
-                
-                if (!this.bothPlayersReady) { 
-                    this.updateGameInfo('Waiting for opponent to join...'); 
-                    return; 
-                }
-                
-                if (!this.playerColor) {
-                    console.error('Player color not set!');
-                    this.updateGameInfo('Error: Player color not assigned. Try rejoining the game.');
-                    return;
-                }
-                
-                if (this.playerColor !== this.currentPlayer) { 
-                    this.updateGameInfo(`It's not your turn! You are ${this.playerColor}, current turn: ${this.currentPlayer}`); 
-                    return; 
-                }
-            }
+   handleSquareClick(row, col) {
+    if (this.gameOver || this.pendingPromotion) return;
+    
+    // DEBUGGING - Add this block at the start
+    console.log('=== CLICK DEBUG ===');
+    console.log('isMultiplayer:', this.isMultiplayer);
+    console.log('bothPlayersReady:', this.bothPlayersReady);
+    console.log('playerColor:', this.playerColor);
+    console.log('currentPlayer:', this.currentPlayer);
+    console.log('gameStarted:', this.gameStarted);
+    console.log('clicked piece:', this.board[row][col]);
+    console.log('==================');
+    
+    // Multiplayer validation with better debugging
+    if (this.isMultiplayer) {
+        if (!this.bothPlayersReady) { 
+            console.log('BLOCKED: Waiting for opponent');
+            this.updateGameInfo('Waiting for opponent to join...'); 
+            return; 
+        }
+        
+        if (!this.playerColor) {
+            console.log('BLOCKED: No player color');
+            this.updateGameInfo('Error: Player color not assigned. Try rejoining the game.');
+            return;
+        }
+        
+        if (this.playerColor !== this.currentPlayer) { 
+            console.log('BLOCKED: Not your turn - playerColor:', this.playerColor, 'currentPlayer:', this.currentPlayer);
+            this.updateGameInfo(`It's not your turn! You are ${this.playerColor}, current turn: ${this.currentPlayer}`); 
+            return; 
+        }
+    }
+    
+    // Rest of your existing code...
             
             // Rest of the method remains the same...
             const piece = this.board[row][col];
