@@ -1,4 +1,5 @@
-const BACKEND_URL = 'https://chess-backend-hu0h.onrender.com/api';
+//const BACKEND_URL = 'https://chess-backend-hu0h.onrender.com/api';
+  const BACKEND_URL ='deepak-chess-backend-production.up.railway.app';
 
 class ChessGame {
     constructor() {
@@ -778,6 +779,12 @@ updateKingsFromBoard() {
             white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
             black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' }
         };
+
+         if (this.isMultiplayer && this.playerColor) {
+        // Show your pieces as white symbols, opponent pieces as black symbols
+        const displayColor = (piece.color === this.playerColor) ? 'white' : 'black';
+        return symbols[displayColor][piece.type];
+    }
         return symbols[piece.color][piece.type];
     }
 
