@@ -428,42 +428,49 @@ class ChessGame {
         }
     }
 
-    handleGameJoined(gameState) {
-    this.isMultiplayer = true;
-    this.gameId = gameState.gameId;
-    
-    // CRITICAL FIX: Ensure player color is properly assigned
-    console.log('Game state received:', gameState);
-    console.log('My player ID:', this.playerId);
-    
-    if (gameState.whitePlayer && gameState.whitePlayer.id === this.playerId) {
-        this.playerColor = 'white';
-        console.log('Assigned as WHITE player');
-    } else if (gameState.blackPlayer && gameState.blackPlayer.id === this.playerId) {
-        this.playerColor = 'black';
-        console.log('Assigned as BLACK player');
-    } else {
-        console.error('Player color not assigned! White player:', gameState.whitePlayer, 'Black player:', gameState.blackPlayer);
-        // Try to assign based on available slots
-        if (!gameState.whitePlayer) {
-            this.playerColor = 'white';
-        } else if (!gameState.blackPlayer) {
-            this.playerColor = 'black';
+        handleGameJoined(gameState) {
+            this.isMultiplayer = true;
+            this.gameId = gameState.gameId;
+            
+            console.log('Game state received:', gameState);
+            console.log('My player ID:', this.playerId);
+            
+            // Fixed player color assignment - backend sends Player objects with 'id' field
+            if (gameState.whitePlayer && gameState.whitePlayer.id === this.playerId) {
+                this.playerColor = 'white';
+            } else if (gameState.blackPlayer && gameState.blackPlayer.id === this.playerId) {
+                this.playerColor = 'black';
+            } else {
+                // Fallback: assign based on available slots
+                if (!gameState.whitePlayer) {
+                    this.playerColor = 'white';
+                } else if (!gameState.blackPlayer) {
+                    this.playerColor = 'black';
+                } else {
+                    console.error('Could not determine player color!');
+                    this.playerColor = null;
+                }
+            }
+            
+            // Critical check to ensure player color was assigned
+            if (!this.playerColor) {
+                console.error('Player color assignment failed! GameState:', gameState);
+                this.updateGameInfo('Error: Could not determine your color. Try rejoining the game.');
+                return;
+            }
+            
+            console.log('Final player color assignment:', this.playerColor);
+            
+            this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
+            this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
+            this.updateControlStates();
+            
+            if (!this.bothPlayersReady) {
+                this.updateGameInfo(`Waiting for opponent... Share game ID: ${this.gameId}`);
+            } else {
+                this.updateGameInfo(`Game ready. You are ${this.playerColor}. ${this.currentPlayer === 'white' ? 'White' : 'Black'} to move.`);
+            }
         }
-    }
-    console.log('Final player color assignment:', this.playerColor);
-    
-    // Rest of the method...
-    this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
-    this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
-    this.updateControlStates();
-    
-    if (!this.bothPlayersReady) {
-        this.updateGameInfo(`Waiting for opponent... Share game ID: ${this.gameId}`);
-    } else {
-        this.updateGameInfo(`Game ready. You are ${this.playerColor}. ${this.currentPlayer === 'white' ? 'White' : 'Black'} to move.`);
-    }
-}
 
     handleRemoteMove(message) {
         if (message.move) {
