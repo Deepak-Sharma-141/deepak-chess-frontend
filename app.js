@@ -496,6 +496,7 @@ class ChessGame {
     // Add this method to your frontend ChessGame class
 updateBoardFromServer(serverBoardState) {
     try {
+        console.log('Syncing board from server:', serverBoardState);
         const boardData = JSON.parse(serverBoardState);
         const serverBoard = boardData.board;
         
@@ -510,9 +511,23 @@ updateBoardFromServer(serverBoardState) {
                 }
             }
         }
-        console.log('Board synced from server');
+        
+        // Update kings positions
+        this.updateKingsFromBoard();
+        console.log('Board synced successfully from server');
     } catch (error) {
         console.error('Failed to sync board from server:', error);
+    }
+}
+
+updateKingsFromBoard() {
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const piece = this.board[row][col];
+            if (piece && piece.type === 'king') {
+                this.kings[piece.color] = { row, col };
+            }
+        }
     }
 }
 
@@ -532,122 +547,119 @@ updateBoardFromServer(serverBoardState) {
         }
 
     updateFromGameState(gameState) {
-        console.log('=== UPDATING FROM GAME STATE ===');
-        console.log('Received gameState:', gameState);
+    console.log('=== UPDATING FROM GAME STATE ===');
+    console.log('Received gameState:', gameState);
+
+    if (!gameState) return;
     
-        if (!gameState) return;
-        
-        // Update game state from server
-        this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
-        this.currentPlayer = gameState.currentTurn;
-        this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
-        this.gameOver = gameState.gameStatus === 'finished';
+    // Update game state from server
+    this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
+    this.currentPlayer = gameState.currentTurn;
+    this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
+    this.gameOver = gameState.gameStatus === 'finished';
 
-        console.log('Updated values:');
-        console.log('bothPlayersReady:', this.bothPlayersReady);
-        console.log('currentPlayer:', this.currentPlayer);
-        console.log('gameStarted:', this.gameStarted);
-        console.log('gameOver:', this.gameOver);
-        console.log('================================');
-            
-        // Update board state if provided
-        if (gameState.board) {
-            this.board = gameState.board;
-        }
+    console.log('Updated values:');
+    console.log('bothPlayersReady:', this.bothPlayersReady);
+    console.log('currentPlayer:', this.currentPlayer);
+    console.log('gameStarted:', this.gameStarted);
+    console.log('gameOver:', this.gameOver);
+    console.log('================================');
         
-        // Update captured pieces if provided
-        if (gameState.capturedPieces) {
-            this.capturedPieces = gameState.capturedPieces;
-        }
-        
-        // Update move history if provided
-        if (gameState.moveHistory) {
-            this.moveHistory = gameState.moveHistory;
-        }
-        
-        // Update kings position if provided
-        if (gameState.kings) {
-            this.kings = gameState.kings;
-        }
-        
-        // Start timer if game is active and timer is enabled
-        if (this.timerEnabled && this.gameStarted && !this.timerInterval) {
-            this.startTimer();
-        } else if (!this.timerEnabled && this.timerInterval) {
-            // Stop timer if it's running but shouldn't be
-            this.stopTimer();
-        }
-        
-        this.updateStatus();
-        this.updateControlStates();
-        this.updateDisplay();
+    // Update board state if provided
+    if (gameState.boardState) {
+        this.updateBoardFromServer(gameState.boardState);
     }
-
-    sendMove(fromRow, fromCol, toRow, toCol) {
-            console.log('sendMove called with:', { fromRow, fromCol, toRow, toCol });
-            
-            if (!this.isMultiplayer || !this.stompClient || !this.connected) {
-                console.error('Cannot send move:', {
-                    multiplayer: this.isMultiplayer, 
-                    stompClient: !!this.stompClient, 
-                    connected: this.connected
-                });
-                this.updateGameInfo('Error: Not connected to multiplayer server');
-                return;
-            }
-            
-            if (!this.bothPlayersReady) {
-                this.updateGameInfo('Waiting for opponent to join...');
-                return;
-            }
-            
-            if (!this.playerColor) {
-                console.error('Player color not set when sending move!');
-                this.updateGameInfo('Error: Player color not assigned');
-                return;
-            }
-            
-            if (this.playerColor !== this.currentPlayer) {
-                this.updateGameInfo('It\'s not your turn!');
-                return;
-            }
-            
-            const piece = this.board[fromRow][fromCol];
-            
-            if (!piece) {
-                console.error('No piece at source square:', fromRow, fromCol);
-                this.updateGameInfo('Error: No piece at selected square');
-                return;
-            }
-            
-            if (piece.color !== this.playerColor) {
-                this.updateGameInfo('You can only move your own pieces!');
-                return;
-            }
-            
-            const capturedPiece = this.board[toRow][toCol];
-            
-            const move = {
-                fromRow, fromCol, toRow, toCol,
-                playerId: this.playerId,
-                playerColor: this.playerColor,
-                piece: piece.type,
-                capturedPiece: capturedPiece ? capturedPiece.type : null,
-                notation: this.generateNotation(fromRow, fromCol, toRow, toCol),
-                timestamp: new Date().toISOString()
-            };
-            
-            const moveMessage = { type: 'move', playerId: this.playerId, move };
-            console.log('Sending move to server:', moveMessage);
-            
-            try {
-                this.stompClient.send(`/app/game/${this.gameId}/move`, {}, JSON.stringify(moveMessage));
-                console.log('Move sent successfully');
-            } catch (error) {
-                console.error('Error sending move:', error);
-                this.updateGameInfo('Error sending move to server');
-            }
-        }
+    
+    // Update captured pieces if provided
+    if (gameState.capturedPieces) {
+        this.capturedPieces = gameState.capturedPieces;
+    }
+    
+    // Update move history if provided
+    if (gameState.moveHistory) {
+        this.moveHistory = gameState.moveHistory;
+    }
+    
+    // Start timer if game is active and timer is enabled
+    if (this.timerEnabled && this.gameStarted && !this.timerInterval) {
+        this.startTimer();
+    } else if (!this.timerEnabled && this.timerInterval) {
+        // Stop timer if it's running but shouldn't be
+        this.stopTimer();
+    }
+    
+    this.updateStatus();
+    this.updateControlStates();
+    this.updateDisplay();
+}
+   sendMove(fromRow, fromCol, toRow, toCol) {
+    console.log('sendMove called with:', { fromRow, fromCol, toRow, toCol });
+    
+    if (!this.isMultiplayer || !this.stompClient || !this.connected) {
+        console.error('Cannot send move:', {
+            multiplayer: this.isMultiplayer, 
+            stompClient: !!this.stompClient, 
+            connected: this.connected
+        });
+        this.updateGameInfo('Error: Not connected to multiplayer server');
+        return;
+    }
+    
+    if (!this.bothPlayersReady) {
+        this.updateGameInfo('Waiting for opponent to join...');
+        return;
+    }
+    
+    if (!this.playerColor) {
+        console.error('Player color not set when sending move!');
+        this.updateGameInfo('Error: Player color not assigned');
+        return;
+    }
+    
+    if (this.playerColor !== this.currentPlayer) {
+        this.updateGameInfo('It\'s not your turn!');
+        return;
+    }
+    
+    const piece = this.board[fromRow][fromCol];
+    
+    if (!piece) {
+        console.error('No piece at source square:', fromRow, fromCol);
+        this.updateGameInfo('Error: No piece at selected square');
+        return;
+    }
+    
+    if (piece.color !== this.playerColor) {
+        this.updateGameInfo('You can only move your own pieces!');
+        return;
+    }
+    
+    const capturedPiece = this.board[toRow][toCol];
+    
+    const move = {
+        fromRow, fromCol, toRow, toCol,
+        playerId: this.playerId,
+        playerColor: this.playerColor,
+        piece: piece.type,
+        capturedPiece: capturedPiece ? capturedPiece.type : null,
+        notation: this.generateNotation(fromRow, fromCol, toRow, toCol),
+        timestamp: new Date().toISOString()
+    };
+    
+    const moveMessage = { type: 'move', playerId: this.playerId, move };
+    console.log('Sending move to server:', moveMessage);
+    
+    try {
+        this.stompClient.send(`/app/game/${this.gameId}/move`, {}, JSON.stringify(moveMessage));
+        console.log('Move sent successfully');
+        
+        // Temporarily disable moves until server response
+        this.clearSelection();
+    } catch (error) {
+        console.error('Error sending move:', error);
+        this.updateGameInfo('Error sending move to server');
+    }
+}
 
     generateNotation(fromRow, fromCol, toRow, toCol) {
         const piece = this.board[fromRow][fromCol];
@@ -769,10 +781,10 @@ updateBoardFromServer(serverBoardState) {
         return symbols[piece.color][piece.type];
     }
 
-   handleSquareClick(row, col) {
+handleSquareClick(row, col) {
     if (this.gameOver || this.pendingPromotion) return;
     
-    // DEBUGGING - Add this block at the start
+    // Enhanced debugging
     console.log('=== CLICK DEBUG ===');
     console.log('isMultiplayer:', this.isMultiplayer);
     console.log('bothPlayersReady:', this.bothPlayersReady);
@@ -803,52 +815,44 @@ updateBoardFromServer(serverBoardState) {
         }
     }
     
-    // Rest of your existing code...
+    const piece = this.board[row][col];
+    console.log('Clicked piece:', piece);
             
-            // Rest of the method remains the same...
-            const piece = this.board[row][col];
-                console.log('Clicked piece:', piece);
-                console.log('Piece type:', typeof piece);
-                if (piece) {
-                    console.log('Piece color:', piece.color);
-                    console.log('Piece type:', piece.type);
-                }
-                        
-            if (this.selectedSquare) {
-                const [selectedRow, selectedCol] = this.selectedSquare;
-                
-                if (row === selectedRow && col === selectedCol) { 
-                    this.clearSelection(); 
-                    return; 
-                }
-                
-                if (this.isValidMove(selectedRow, selectedCol, row, col)) {
-                    if (this.isMultiplayer) { 
-                        console.log('Sending move to server...');
-                        this.sendMove(selectedRow, selectedCol, row, col); 
-                    } else { 
-                        this.makeMove(selectedRow, selectedCol, row, col); 
-                    }
-                    this.clearSelection();
-                } else {
-                    if (piece && piece.color === this.currentPlayer) {
-                        if (!this.isMultiplayer || piece.color === this.playerColor) {
-                            this.selectSquare(row, col);
-                        }
-                    } else {
-                        this.clearSelection();
-                    }
+    if (this.selectedSquare) {
+        const [selectedRow, selectedCol] = this.selectedSquare;
+        
+        if (row === selectedRow && col === selectedCol) { 
+            this.clearSelection(); 
+            return; 
+        }
+        
+        if (this.isValidMove(selectedRow, selectedCol, row, col)) {
+            if (this.isMultiplayer) { 
+                console.log('Sending move to server...');
+                this.sendMove(selectedRow, selectedCol, row, col); 
+            } else { 
+                this.makeMove(selectedRow, selectedCol, row, col); 
+            }
+            this.clearSelection();
+        } else {
+            if (piece && piece.color === this.currentPlayer) {
+                if (!this.isMultiplayer || piece.color === this.playerColor) {
+                    this.selectSquare(row, col);
                 }
             } else {
-                if (piece && piece.color === this.currentPlayer) {
-                    if (!this.isMultiplayer || piece.color === this.playerColor) {
-                        this.selectSquare(row, col);
-                    } else {
-                        this.updateGameInfo(`You can only move ${this.playerColor} pieces!`);
-                    }
-                }
+                this.clearSelection();
             }
         }
+    } else {
+        if (piece && piece.color === this.currentPlayer) {
+            if (!this.isMultiplayer || piece.color === this.playerColor) {
+                this.selectSquare(row, col);
+            } else {
+                this.updateGameInfo(`You can only move ${this.playerColor} pieces!`);
+            }
+        }
+    }
+}
 
     selectSquare(row, col) {
         this.clearHighlights();
