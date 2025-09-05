@@ -1,5 +1,5 @@
-    const BACKEND_URL = 'https://chess-backend-hu0h.onrender.com/api';
- // const BACKEND_URL ='deepak-chess-backend-production.up.railway.app';
+    //const BACKEND_URL = 'https://chess-backend-hu0h.onrender.com/api';
+      const BACKEND_URL ='deepak-chess-backend-production.up.railway.app';
 
 class ChessGame {
     constructor() {
@@ -39,76 +39,305 @@ class ChessGame {
         return 'player_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
     }
 
-    connectToServer() {
-        return new Promise((resolve, reject) => {
-            try {
-                console.log('Attempting to connect to:', BACKEND_URL + '/chess-websocket');
+    // connectToServer() {
+    //     return new Promise((resolve, reject) => {
+    //         try {
+    //             console.log('Attempting to connect to:', BACKEND_URL + '/chess-websocket');
                 
-                // Check if we're in a secure context
-                if (location.protocol === 'https:' && BACKEND_URL.startsWith('https:')) {
-                    console.log('Secure connection detected');
-                    this.hideSecurityWarning();
-                } else if (location.protocol === 'http:' && BACKEND_URL.startsWith('http:')) {
-                    console.log('HTTP connection detected');
-                    this.hideSecurityWarning();
-                } else {
-                    console.warn('Mixed content detected - this may cause security warnings');
-                    this.showSecurityWarning();
-                }
+    //             // Check if we're in a secure context
+    //             if (location.protocol === 'https:' && BACKEND_URL.startsWith('https:')) {
+    //                 console.log('Secure connection detected');
+    //                 this.hideSecurityWarning();
+    //             } else if (location.protocol === 'http:' && BACKEND_URL.startsWith('http:')) {
+    //                 console.log('HTTP connection detected');
+    //                 this.hideSecurityWarning();
+    //             } else {
+    //                 console.warn('Mixed content detected - this may cause security warnings');
+    //                 this.showSecurityWarning();
+    //             }
                 
-                const socket = new SockJS(BACKEND_URL + '/chess-websocket');
-                this.stompClient = Stomp.over(socket);
+    //             const socket = new SockJS(BACKEND_URL + '/chess-websocket');
+    //             this.stompClient = Stomp.over(socket);
                 
-                // Enable debug logging
-                this.stompClient.debug = (str) => {
-                    console.log('STOMP Debug:', str);
-                };
+    //             // Enable debug logging
+    //             this.stompClient.debug = (str) => {
+    //                 console.log('STOMP Debug:', str);
+    //             };
                 
-                this.updateGameStatus('Connecting to server...', 'connecting');
+    //             this.updateGameStatus('Connecting to server...', 'connecting');
                 
-                // Set connection timeout
-                const connectionTimeout = setTimeout(() => {
-                    if (!this.connected) {
-                        console.error('Connection timeout');
-                        this.updateGameStatus('Connection timeout - server may be down', 'disconnected');
-                        reject(new Error('Connection timeout'));
-                    }
-                }, 10000); // 10 second timeout
+    //             // Set connection timeout
+    //             const connectionTimeout = setTimeout(() => {
+    //                 if (!this.connected) {
+    //                     console.error('Connection timeout');
+    //                     this.updateGameStatus('Connection timeout - server may be down', 'disconnected');
+    //                     reject(new Error('Connection timeout'));
+    //                 }
+    //             }, 10000); // 10 second timeout
                 
-                this.stompClient.connect({}, 
-                    (frame) => {
-                        clearTimeout(connectionTimeout);
-                        console.log('Connected successfully:', frame);
-                        this.connected = true;
-                        this.updateGameStatus('Connected to server', 'connected');
-                        resolve();
-                    },
-                    (error) => {
-                        clearTimeout(connectionTimeout);
-                        console.error('Connection error:', error);
-                        this.connected = false;
+    //             this.stompClient.connect({}, 
+    //                 (frame) => {
+    //                     clearTimeout(connectionTimeout);
+    //                     console.log('Connected successfully:', frame);
+    //                     this.connected = true;
+    //                     this.updateGameStatus('Connected to server', 'connected');
+    //                     resolve();
+    //                 },
+    //                 (error) => {
+    //                     clearTimeout(connectionTimeout);
+    //                     console.error('Connection error:', error);
+    //                     this.connected = false;
                         
-                        // Provide more specific error messages
-                        let errorMessage = 'Failed to connect to server';
-                        if (error.includes('timeout')) {
-                            errorMessage = 'Connection timeout - server may be down';
-                        } else if (error.includes('CORS')) {
-                            errorMessage = 'CORS error - check server configuration';
-                        } else if (error.includes('Mixed Content')) {
-                            errorMessage = 'Mixed content error - use HTTPS';
-                        }
+    //                     // Provide more specific error messages
+    //                     let errorMessage = 'Failed to connect to server';
+    //                     if (error.includes('timeout')) {
+    //                         errorMessage = 'Connection timeout - server may be down';
+    //                     } else if (error.includes('CORS')) {
+    //                         errorMessage = 'CORS error - check server configuration';
+    //                     } else if (error.includes('Mixed Content')) {
+    //                         errorMessage = 'Mixed content error - use HTTPS';
+    //                     }
                         
-                        this.updateGameStatus(errorMessage, 'disconnected');
-                        reject(error);
-                    }
-                );
-            } catch (error) {
-                console.error('Failed to create WebSocket connection:', error);
-                this.updateGameStatus('Failed to create connection', 'disconnected');
-                reject(error);
-            }
-        });
+    //                     this.updateGameStatus(errorMessage, 'disconnected');
+    //                     reject(error);
+    //                 }
+    //             );
+    //         } catch (error) {
+    //             console.error('Failed to create WebSocket connection:', error);
+    //             this.updateGameStatus('Failed to create connection', 'disconnected');
+    //             reject(error);
+    //         }
+    //     });
+    // }
+
+    // Updated constants for Railway backend
+const BACKEND_BASE_URL = 'https://deepak-chess-backend-production.up.railway.app';
+const BACKEND_API_URL = 'https://deepak-chess-backend-production.up.railway.app/api';
+const WEBSOCKET_URL = 'https://deepak-chess-backend-production.up.railway.app/chess-websocket';
+
+// Alternative configuration object (recommended)
+const CONFIG = {
+    BACKEND: {
+        BASE_URL: 'https://deepak-chess-backend-production.up.railway.app',
+        API_URL: 'https://deepak-chess-backend-production.up.railway.app/api',
+        WEBSOCKET_URL: 'https://deepak-chess-backend-production.up.railway.app/chess-websocket'
+    },
+    FRONTEND: {
+        URL: 'https://deepak-sharma-141.github.io/deepak-chess-frontend'
     }
+};
+
+connectToServer() {
+    return new Promise((resolve, reject) => {
+        try {
+            console.log('🔌 Attempting to connect to Railway backend:', CONFIG.BACKEND.WEBSOCKET_URL);
+            
+            // Enhanced security check
+            const isSecureContext = window.isSecureContext || location.protocol === 'https:';
+            const hasSecureBackend = CONFIG.BACKEND.WEBSOCKET_URL.startsWith('https://');
+            
+            if (isSecureContext && hasSecureBackend) {
+                console.log('✅ Secure HTTPS connection to Railway detected');
+                this.hideSecurityWarning();
+            } else {
+                console.warn('⚠️ Security issue detected');
+                console.warn('Page protocol:', location.protocol);
+                console.warn('Backend URL:', CONFIG.BACKEND.WEBSOCKET_URL);
+                this.showSecurityWarning();
+            }
+            
+            // Create WebSocket connection to Railway
+            console.log('🚀 Creating SockJS connection to Railway...');
+            const socket = new SockJS(CONFIG.BACKEND.WEBSOCKET_URL);
+            this.stompClient = Stomp.over(socket);
+            
+            // Configure STOMP client for Railway
+            this.stompClient.debug = (str) => {
+                console.log('🔧 STOMP:', str);
+            };
+            
+            // Railway-optimized heartbeat settings
+            this.stompClient.heartbeat.outgoing = 30000; // 30 seconds (Railway friendly)
+            this.stompClient.heartbeat.incoming = 30000; // 30 seconds
+            
+            this.updateGameStatus('🔌 Connecting to Railway server...', 'connecting');
+            
+            // Connection timeout optimized for Railway
+            const connectionTimeout = setTimeout(() => {
+                if (!this.connected) {
+                    console.error('❌ Railway connection timeout after 20 seconds');
+                    this.updateGameStatus('⏱️ Connection timeout. Railway may be starting up...', 'disconnected');
+                    this.attemptReconnect();
+                    reject(new Error('Railway connection timeout'));
+                }
+            }, 20000); // 20 second timeout (Railway can be slower to start)
+            
+            // Connect to Railway backend
+            this.stompClient.connect({}, 
+                (frame) => {
+                    clearTimeout(connectionTimeout);
+                    console.log('✅ Successfully connected to Railway:', frame);
+                    this.connected = true;
+                    this.connectionAttempts = 0;
+                    this.updateGameStatus('🟢 Connected to Railway server', 'connected');
+                    this.hideSecurityWarning();
+                    resolve();
+                },
+                (error) => {
+                    clearTimeout(connectionTimeout);
+                    console.error('❌ Railway connection error:', error);
+                    this.connected = false;
+                    
+                    // Railway-specific error handling
+                    let errorMessage = 'Failed to connect to Railway server';
+                    let errorType = 'connection-error';
+                    
+                    if (typeof error === 'string') {
+                        if (error.includes('timeout') || error.includes('Timeout')) {
+                            errorMessage = '⏱️ Railway server timeout - may be starting up';
+                            errorType = 'railway-timeout';
+                        } else if (error.includes('CORS') || error.includes('cors')) {
+                            errorMessage = '🚫 CORS error - Railway server configuration issue';
+                            errorType = 'cors';
+                        } else if (error.includes('404') || error.includes('Not Found')) {
+                            errorMessage = '🔍 Endpoint not found - check Railway deployment';
+                            errorType = 'not-found';
+                        } else if (error.includes('502') || error.includes('503')) {
+                            errorMessage = '🔧 Railway server starting up - please wait';
+                            errorType = 'railway-starting';
+                        } else if (error.includes('WebSocket')) {
+                            errorMessage = '🔌 WebSocket connection to Railway failed';
+                            errorType = 'websocket';
+                        }
+                    }
+                    
+                    console.error('🔍 Error type:', errorType);
+                    this.updateGameStatus(`🔴 ${errorMessage}`, 'disconnected');
+                    
+                    // Railway-specific retry logic
+                    if (errorType === 'railway-timeout' || errorType === 'railway-starting' || errorType === 'websocket') {
+                        setTimeout(() => this.attemptReconnect(), 5000); // Wait 5 seconds for Railway
+                    } else if (errorType === 'cors' || errorType === 'not-found') {
+                        this.showSecurityWarning();
+                    }
+                    
+                    reject(error);
+                }
+            );
+            
+        } catch (error) {
+            console.error('❌ Failed to create Railway WebSocket connection:', error);
+            this.updateGameStatus('🔴 Failed to connect to Railway', 'disconnected');
+            this.showSecurityWarning();
+            reject(error);
+        }
+    });
+}
+
+// Railway-optimized reconnection logic
+attemptReconnect() {
+    if (!this.connectionAttempts) {
+        this.connectionAttempts = 0;
+    }
+    
+    if (this.connectionAttempts < 5) { // More attempts for Railway (can be slower)
+        this.connectionAttempts++;
+        console.log(`🔄 Railway reconnection attempt ${this.connectionAttempts}/5`);
+        this.updateGameStatus(`🔄 Reconnecting to Railway... (${this.connectionAttempts}/5)`, 'connecting');
+        
+        // Progressive delay optimized for Railway startup times
+        const delay = Math.min(3000 * this.connectionAttempts, 15000); // Max 15s delay
+        
+        setTimeout(() => {
+            this.connectToServer().catch(error => {
+                console.error('Railway reconnection failed:', error);
+                if (this.connectionAttempts >= 5) {
+                    this.updateGameStatus('🔴 Cannot connect to Railway. Please refresh and try again.', 'disconnected');
+                }
+            });
+        }, delay);
+    }
+}
+
+// Railway-optimized API calls
+async makeApiCall(endpoint, options = {}) {
+    try {
+        const url = `${CONFIG.BACKEND.API_URL}${endpoint}`;
+        console.log('📡 Making API call to Railway:', url);
+        
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                ...options.headers
+            },
+            // Railway-friendly timeout
+            signal: AbortSignal.timeout(30000) // 30 second timeout
+        });
+        
+        if (!response.ok) {
+            if (response.status === 502 || response.status === 503) {
+                throw new Error(`Railway server starting up (${response.status})`);
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('❌ Railway API call failed:', error);
+        
+        if (error.message.includes('Railway server starting')) {
+            console.log('⏱️ Railway is starting up, please wait...');
+        }
+        
+        throw error;
+    }
+}
+
+// Enhanced security warning for Railway
+showSecurityWarning() {
+    const warningElement = document.getElementById('security-warning');
+    if (warningElement) {
+        warningElement.style.display = 'block';
+        warningElement.innerHTML = `
+            <strong>⚠️ Connection Issue:</strong> 
+            Unable to establish secure connection to Railway backend.
+            <br><small>Frontend: ${location.protocol}//${location.host}</small>
+            <br><small>Backend: ${CONFIG.BACKEND.BASE_URL}</small>
+            <br><em>Railway servers may take a moment to start up.</em>
+        `;
+    }
+}
+
+hideSecurityWarning() {
+    const warningElement = document.getElementById('security-warning');
+    if (warningElement) {
+        warningElement.style.display = 'none';
+    }
+}
+
+// Test Railway connection
+async testRailwayConnection() {
+    try {
+        console.log('🧪 Testing Railway backend connection...');
+        const response = await fetch(CONFIG.BACKEND.BASE_URL + '/health', {
+            method: 'GET',
+            signal: AbortSignal.timeout(10000)
+        });
+        
+        if (response.ok) {
+            console.log('✅ Railway backend is healthy');
+            return true;
+        } else {
+            console.warn('⚠️ Railway backend responded with:', response.status);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Railway health check failed:', error);
+        return false;
+    }
+}
 
     disconnectFromServer() {
         if (this.stompClient && this.connected) {
