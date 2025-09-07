@@ -413,6 +413,28 @@ class ChessGame {
     //     }
     // }
 
+    async joinRandomGame() {
+    const nameInput = document.getElementById('playerNameInput');
+    playerName = nameInput.value.trim();
+    
+    if (!playerName) {
+        alert('Please enter your name first');
+        return;
+    }
+    
+    // Show waiting status
+    showWaitingStatus('Searching for an opponent...');
+    
+    // Connect to WebSocket if not already connected
+    if (!isConnected) {
+        connectToWebSocket(() => {
+            requestRandomMatch();
+        });
+    } else {
+        requestRandomMatch();
+    }
+}
+
     async joinSpecificGame() {
         const playerName = document.getElementById('playerNameInput').value.trim();
         const gameId = document.getElementById('gameIdInput').value.trim();
@@ -1306,27 +1328,7 @@ let myColor = null;
 let gameMode = 'local'; // 'local' or 'multiplayer'
 
 // Function to join random game - REPLACE your existing joinRandomGame function
-function joinRandomGame() {
-    const nameInput = document.getElementById('playerNameInput');
-    playerName = nameInput.value.trim();
-    
-    if (!playerName) {
-        alert('Please enter your name first');
-        return;
-    }
-    
-    // Show waiting status
-    showWaitingStatus('Searching for an opponent...');
-    
-    // Connect to WebSocket if not already connected
-    if (!isConnected) {
-        connectToWebSocket(() => {
-            requestRandomMatch();
-        });
-    } else {
-        requestRandomMatch();
-    }
-}
+
 
 // Function to connect to WebSocket - UPDATE your existing function
 function connectToWebSocket(callback) {
