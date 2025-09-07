@@ -413,25 +413,226 @@ class ChessGame {
     //     }
     // }
 
-    async joinRandomGame() {
+    // Replace your existing joinRandomGame function in ChessGame class
+async joinRandomGame() {
     const nameInput = document.getElementById('playerNameInput');
-    playerName = nameInput.value.trim();
+    const playerName = nameInput.value.trim();
     
     if (!playerName) {
         alert('Please enter your name first');
         return;
     }
     
-    // Show waiting status
-    showWaitingStatus('Searching for an opponent...');
+    this.playerName = playerName;
     
-    // Connect to WebSocket if not already connected
-    if (!isConnected) {
-        connectToWebSocket(() => {
-            requestRandomMatch();
+    try {
+        // Connect to WebSocket first
+        await this.connectToServer();
+        
+        // Subscribe to match queue messages
+        this.stompClient.subscribe('/user/queue/match', (message) => {
+            console.log('Match message received:', message.body);
+            try {
+                const matchMessage = JSON.parse(message.body);
+                this.handleMatchMessage(matchMessage);
+            } catch (error) {
+                console.error('Error parsing match message:', error);
+            }
         });
-    } else {
-        requestRandomMatch();
+        
+        // Send matchmaking request via WebSocket
+        const matchRequest = {
+            playerName: this.playerName,
+            type: 'RANDOM_MATCH'
+        };
+        
+        this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
+        
+        // Show waiting UI
+        this.showWaitingStatus('Searching for an opponent...');
+        this.updateGameStatus('Searching for opponent...', 'searching');
+        
+        console.log('Random match request sent for:', this.playerName);
+        
+    } catch (error) {
+        console.error('Error in random matchmaking:', error);
+        alert('Failed to start matchmaking: ' + error.message);
+        this.hideWaitingStatus();
+    }
+}
+
+// Add this method to handle match-related messages
+handleMatchMessage(message) {
+    console.log('Handling match message:', message);
+    
+    switch(message.type) {
+        case 'WAITING_FOR_OPPONENT':
+            this.handleWaitingForOpponent(message);
+            break;
+            
+        case 'MATCH_FOUND':
+            this.handleMatchFound(message);
+            break;
+            
+        case 'MATCH_TIMEOUT':
+            this.handleMatchTimeout(message);
+            break;
+            
+        case 'MATCH_CANCELLED':
+            this.handleMatchCancelled(message);
+            break;
+            
+        case 'MATCH_ERROR':
+            this.handleMatchError(message);
+            break;
+            
+        default:
+            console.log('Unknown match message type:', message.type);
+    }
+}
+
+handleWaitingForOpponent(message) {
+    this.updateGameStatus('Waiting for opponent...', 'waiting');
+    const waitingMsg = message.queueSize ? 
+        `Searching for opponent... (${message.queueSize} players in queue)` : 
+        'Searching for opponent...';
+    this.updateWaitingMessage(waitingMsg);
+}
+
+handleMatchFound(message) {
+    console.log('Match found:', message);
+    
+    // Set up game state
+    this.gameId = message.gameId;
+    this.playerColor = message.playerColor;
+    this.isMultiplayer = true;
+    
+    // Subscribe to game-specific channels
+    this.subscribeToGame(this.gameId);
+    
+    // Hide waiting UI and close menu
+    this.hideWaitingStatus();
+    closeMultiplayerMenu();
+    
+    // Update game info
+    this.updateGameStatus('Match found! Game starting...', 'matched');
+    this.updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
+    
+    // Update game state if provided
+    if (message.gameState) {
+        this.updateFromGameState(message.gameState);
+    }
+    
+    console.log('Match setup complete - Game ID:', this.gameId, 'Color:', this.playerColor);
+}
+
+handleMatchTimeout(message) {
+    this.hideWaitingStatus();
+    this.updateGameStatus('Match search timed out', 'timeout');
+    alert(message.message || 'No opponent found within the time limit. Please try again.');
+}
+
+handleMatchCancelled(message) {
+    this.hideWaitingStatus();
+    this.updateGameStatus('Match search cancelled', 'cancelled');
+    if (message.message && message.message !== 'Match search cancelled by user') {
+        alert(message.message);
+    }
+}
+
+handleMatchError(message) {
+    this.hideWaitingStatus();
+    this.updateGameStatus('Match error occurred', 'error');
+    alert('Matchmaking error: ' + (message.message || 'Unknown error'));
+}
+
+// Add method to cancel random match search
+cancelRandomMatch() {
+    if (this.stompClient && this.connected) {
+        const cancelRequest = {
+            playerName: this.playerName
+        };
+        
+        this.stompClient.send('/app/cancelRandomMatch', {}, JSON.stringify(cancelRequest));
+        this.hideWaitingStatus();
+        this.updateGameStatus('Match search cancelled', 'cancelled');
+    }
+}
+
+// UI helper methods
+showWaitingStatus(message) {
+    const modal = document.getElementById('multiplayerModal');
+    const dialog = modal.querySelector('.multiplayer-dialog');
+    
+    let waitingDiv = document.getElementById('waitingStatus');
+    if (!waitingDiv) {
+        waitingDiv = document.createElement('div');
+        waitingDiv.id = 'waitingStatus';
+        waitingDiv.className = 'waiting-status';
+        waitingDiv.innerHTML = `
+            <div class="waiting-content">
+                <div class="waiting-spinner">⏳</div>
+                <div class="waiting-message"></div>
+                <div class="waiting-timer">Time elapsed: 0:00</div>
+                <button class="btn btn-cancel" onclick="game.cancelRandomMatch()">Cancel Search</button>
+            </div>
+        `;
+        dialog.appendChild(waitingDiv);
+    }
+
+    
+    this.updateWaitingMessage(message);
+    
+    // Hide other options while waiting
+    const options = dialog.querySelector('.multiplayer-options');
+    if (options) options.style.display = 'none';
+    waitingDiv.style.display = 'block';
+    
+    // Start timer
+    this.startWaitingTimer();
+}
+
+hideWaitingStatus() {
+    const waitingDiv = document.getElementById('waitingStatus');
+    if (waitingDiv) {
+        waitingDiv.style.display = 'none';
+    }
+    
+    const options = document.querySelector('.multiplayer-options');
+    if (options) {
+        options.style.display = 'block';
+    }
+    
+    this.stopWaitingTimer();
+}
+
+updateWaitingMessage(message) {
+    const waitingMessage = document.querySelector('.waiting-message');
+    if (waitingMessage) {
+        waitingMessage.textContent = message;
+    }
+}
+
+startWaitingTimer() {
+    this.waitingStartTime = Date.now();
+    this.waitingTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - this.waitingStartTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        const timerElement = document.querySelector('.waiting-timer');
+        if (timerElement) {
+            timerElement.textContent = `Time elapsed: ${timeString}`;
+        }
+    }, 1000);
+}
+
+stopWaitingTimer() {
+    if (this.waitingTimerInterval) {
+        clearInterval(this.waitingTimerInterval);
+        this.waitingTimerInterval = null;
+        this.waitingStartTime = null;
     }
 }
 
