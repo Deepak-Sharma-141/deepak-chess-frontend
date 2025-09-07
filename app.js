@@ -30,7 +30,8 @@ class ChessGame {
         this.stompClient = null;
         this.connected = false;
         this.bothPlayersReady = false;
-        
+
+
         this.initializeGame();
         this.updateControlStates();
     }
@@ -109,8 +110,6 @@ class ChessGame {
             }
         });
     }
-
- 
 
 
 // Alternative configuration object (recommended)
@@ -1294,6 +1293,620 @@ let game = new ChessGame();
         });
     }
 })();
+
+// Update your existing app.js with these modifications for random matchmaking
+
+// Global variables for multiplayer (add these if not already present)
+let stompClient = null;
+let gameId = null;
+let playerName = null;
+let isConnected = false;
+let waitingForOpponent = false;
+let myColor = null;
+let gameMode = 'local'; // 'local' or 'multiplayer'
+
+// Function to join random game - REPLACE your existing joinRandomGame function
+function joinRandomGame() {
+    const nameInput = document.getElementById('playerNameInput');
+    playerName = nameInput.value.trim();
+    
+    if (!playerName) {
+        alert('Please enter your name first');
+        return;
+    }
+    
+    // Show waiting status
+    showWaitingStatus('Searching for an opponent...');
+    
+    // Connect to WebSocket if not already connected
+    if (!isConnected) {
+        connectToWebSocket(() => {
+            requestRandomMatch();
+        });
+    } else {
+        requestRandomMatch();
+    }
+}
+
+// Function to connect to WebSocket - UPDATE your existing function
+function connectToWebSocket(callback) {
+    // Use your existing backend URL - update this to match your WebSocket endpoint
+    const socket = new SockJS('https://chess-backend-hu0h.onrender.com/chess-websocket');
+    stompClient = Stomp.over(socket);
+    
+    // Disable debug logging
+    stompClient.debug = null;
+    
+    const connectHeaders = {
+        'playerName': playerName || 'Anonymous'
+    };
+    
+    stompClient.connect(connectHeaders, function(frame) {
+        console.log('Connected to WebSocket:', frame);
+        isConnected = true;
+        
+        // Subscribe to match notifications
+        stompClient.subscribe('/user/queue/match', function(message) {
+            handleMatchMessage(JSON.parse(message.body));
+        });
+        
+        // Subscribe to game updates if already in a game
+        if (gameId) {
+            stompClient.subscribe('/topic/game/' + gameId, function(gameMessage) {
+                handleGameMessage(JSON.parse(gameMessage.body));
+            });
+        }
+        
+        if (callback) callback();
+        
+    }, function(error) {
+        console.error('WebSocket connection failed:', error);
+        isConnected = false;
+        updateConnectionStatus('Connection failed');
+        hideWaitingStatus();
+        alert('Failed to connect to game server. Please check your internet connection and try again.');
+    });
+}
+
+// Function to request random match
+function requestRandomMatch() {
+    if (stompClient && isConnected) {
+        const matchRequest = {
+            playerName: playerName,
+            type: 'RANDOM_MATCH'
+        };
+        
+        try {
+            stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
+            waitingForOpponent = true;
+            updateConnectionStatus('Searching for opponent...');
+        } catch (error) {
+            console.error('Error sending match request:', error);
+            hideWaitingStatus();
+            alert('Failed to start matchmaking. Please try again.');
+        }
+    }
+}
+
+// Handle match-related messages - UPDATE your existing function
+function handleMatchMessage(message) {
+    console.log('Match message received:', message);
+    
+    switch(message.type) {
+        case 'MATCH_FOUND':
+            handleMatchFound(message);
+            break;
+        case 'WAITING_FOR_OPPONENT':
+            handleWaitingForOpponent(message);
+            break;
+        case 'MATCH_CANCELLED':
+            handleMatchCancelled(message);
+            break;
+        case 'MATCH_TIMEOUT':
+            handleMatchTimeout(message);
+            break;
+        case 'MATCH_ERROR':
+            handleMatchError(message);
+            break;
+        default:
+            console.log('Unknown match message type:', message.type);
+    }
+}
+
+// Handle when a match is found
+function handleMatchFound(message) {
+    gameId = message.gameId;
+    myColor = message.playerColor;
+    waitingForOpponent = false;
+    
+    hideWaitingStatus();
+    closeMultiplayerMenu();
+    
+    // Set up the game
+    updateConnectionStatus(`Matched! Game ID: ${gameId}`);
+    updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
+    
+    // Subscribe to specific game updates
+    stompClient.subscribe(`/topic/game/${gameId}`, function(gameMessage) {
+        handleGameMessage(JSON.parse(gameMessage.body));
+    });
+    
+    // Send join message to the game
+    const joinMessage = {
+        type: 'join',
+        gameId: gameId,
+        playerId: getSessionId(),
+        playerName: playerName
+    };
+    
+    stompClient.send(`/app/game/${gameId}/join`, {}, JSON.stringify(joinMessage));
+    
+    // Start the game
+    startMultiplayerGame(message.playerColor, message.opponentName);
+}
+
+// Handle waiting for opponent
+function handleWaitingForOpponent(message) {
+    updateConnectionStatus('Waiting for opponent...');
+    showWaitingStatus(message.message || 'Searching for an opponent...');
+    
+    // Update queue size if provided
+    if (message.queueSize !== undefined) {
+        updateWaitingMessage(`Searching for opponent... (${message.queueSize} players in queue)`);
+    }
+}
+
+// Handle match cancellation
+function handleMatchCancelled(message) {
+    waitingForOpponent = false;
+    hideWaitingStatus();
+    updateConnectionStatus('Match search cancelled');
+    
+    if (message.message) {
+        alert(message.message);
+    }
+}
+
+// Handle match timeout
+function handleMatchTimeout(message) {
+    waitingForOpponent = false;
+    hideWaitingStatus();
+    updateConnectionStatus('Match search timed out');
+    
+    alert(message.message || 'No opponent found within the time limit. Please try again.');
+}
+
+// Handle match error
+function handleMatchError(message) {
+    waitingForOpponent = false;
+    hideWaitingStatus();
+    updateConnectionStatus('Match error');
+    
+    alert('Error: ' + (message.message || 'An error occurred during matchmaking'));
+}
+
+// Cancel random match search
+function cancelRandomMatch() {
+    if (stompClient && waitingForOpponent) {
+        const cancelRequest = {
+            playerName: playerName
+        };
+        
+        stompClient.send('/app/cancelRandomMatch', {}, JSON.stringify(cancelRequest));
+        waitingForOpponent = false;
+        hideWaitingStatus();
+        updateConnectionStatus('Match search cancelled');
+    }
+}
+
+// Get session ID (you might need to implement this based on your session management)
+function getSessionId() {
+    // If you have a way to get the session ID, use it
+    // Otherwise, you can use the WebSocket session or generate a unique ID
+    if (stompClient && stompClient.ws) {
+        return stompClient.ws._transport.url.split('/')[5]; // Extract session ID from SockJS URL
+    }
+    
+    // Fallback: generate a unique ID if no session available
+    return 'player-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+}
+
+// Start multiplayer game - ADD this function if it doesn't exist
+function startMultiplayerGame(playerColor, opponentName) {
+    // Initialize game state for multiplayer
+    currentPlayer = 'white';
+    gameMode = 'multiplayer';
+    myColor = playerColor;
+    
+    // Update UI
+    document.getElementById('currentPlayer').textContent = 
+        `${currentPlayer === myColor ? 'Your' : opponentName + "'s"} Turn`;
+    
+    // Enable/disable board interaction based on turn
+    updateBoardInteraction();
+    
+    // Reset the game board if needed
+    if (typeof initializeBoard === 'function') {
+        initializeBoard();
+    }
+}
+
+// Update board interaction based on turn - ADD this function if it doesn't exist
+function updateBoardInteraction() {
+    const board = document.getElementById('chessboard');
+    if (gameMode === 'multiplayer') {
+        if (currentPlayer === myColor) {
+            board.classList.remove('disabled');
+        } else {
+            board.classList.add('disabled');
+        }
+    } else {
+        board.classList.remove('disabled');
+    }
+}
+
+// UI Helper functions - UPDATE these if they exist, ADD if they don't
+function showWaitingStatus(message) {
+    const modal = document.getElementById('multiplayerModal');
+    const dialog = modal.querySelector('.multiplayer-dialog');
+    
+    let waitingDiv = document.getElementById('waitingStatus');
+    if (!waitingDiv) {
+        waitingDiv = document.createElement('div');
+        waitingDiv.id = 'waitingStatus';
+        waitingDiv.className = 'waiting-status';
+        dialog.appendChild(waitingDiv);
+    }
+    
+    waitingDiv.innerHTML = `
+        <div class="waiting-spinner">⏳</div>
+        <div class="waiting-message">${message}</div>
+        <div class="waiting-timer" id="waitingTimer">Time elapsed: 0:00</div>
+        <button class="btn btn-cancel" onclick="cancelRandomMatch()">Cancel Search</button>
+    `;
+    
+    // Hide other options while waiting
+    const options = dialog.querySelector('.multiplayer-options');
+    options.style.display = 'none';
+    waitingDiv.style.display = 'block';
+    
+    // Start timer
+    startWaitingTimer();
+}
+
+function hideWaitingStatus() {
+    const waitingDiv = document.getElementById('waitingStatus');
+    if (waitingDiv) {
+        waitingDiv.style.display = 'none';
+    }
+    
+    // Stop timer
+    stopWaitingTimer();
+    
+    const options = document.querySelector('.multiplayer-options');
+    if (options) {
+        options.style.display = 'block';
+    }
+}
+
+function updateWaitingMessage(message) {
+    const waitingMessage = document.querySelector('.waiting-message');
+    if (waitingMessage) {
+        waitingMessage.textContent = message;
+    }
+}
+
+// Timer functions for waiting status
+let waitingTimerInterval = null;
+let waitingStartTime = null;
+
+function startWaitingTimer() {
+    waitingStartTime = Date.now();
+    waitingTimerInterval = setInterval(updateWaitingTimer, 1000);
+}
+
+function stopWaitingTimer() {
+    if (waitingTimerInterval) {
+        clearInterval(waitingTimerInterval);
+        waitingTimerInterval = null;
+        waitingStartTime = null;
+    }
+}
+
+function updateWaitingTimer() {
+    if (!waitingStartTime) return;
+    
+    const elapsed = Math.floor((Date.now() - waitingStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    const timerElement = document.getElementById('waitingTimer');
+    if (timerElement) {
+        timerElement.textContent = `Time elapsed: ${timeString}`;
+    }
+}
+
+function updateConnectionStatus(status) {
+    const statusElement = document.getElementById('connectionStatus');
+    if (statusElement) {
+        statusElement.textContent = status;
+    }
+}
+
+function updateGameInfo(info) {
+    const infoElement = document.getElementById('gameInfoPanel');
+    if (infoElement) {
+        infoElement.textContent = info;
+    }
+}
+
+// Handle game messages during play - UPDATE your existing function if it exists
+function handleGameMessage(message) {
+    console.log('Game message received:', message);
+    
+    switch(message.type) {
+        case 'move':
+            handleOpponentMove(message);
+            break;
+        case 'gameJoined':
+        case 'playerJoined':
+            handlePlayerJoined(message);
+            break;
+        case 'gameStart':
+            handleGameStart(message);
+            break;
+        case 'gameEnd':
+            handleGameEnd(message);
+            break;
+        case 'resign':
+            handlePlayerResign(message);
+            break;
+        case 'drawOffer':
+            handleDrawOffer(message);
+            break;
+        case 'drawAccept':
+            handleDrawAccept(message);
+            break;
+        case 'drawDecline':
+            handleDrawDecline(message);
+            break;
+        case 'playerDisconnected':
+            handlePlayerDisconnected(message);
+            break;
+        case 'error':
+            handleGameError(message);
+            break;
+        default:
+            console.log('Unknown game message:', message);
+    }
+}
+
+// Handle opponent's move - ADD this function
+function handleOpponentMove(message) {
+    if (!message.move) return;
+    
+    const move = message.move;
+    console.log('Opponent move:', move);
+    
+    // Apply the move to the board (you'll need to implement this based on your board logic)
+    if (typeof applyMoveToBoard === 'function') {
+        applyMoveToBoard(move);
+    }
+    
+    // Switch turns
+    currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+    updateCurrentPlayerDisplay();
+    updateBoardInteraction();
+    
+    // Add to move history if you have that functionality
+    if (typeof addMoveToHistory === 'function') {
+        addMoveToHistory(move.fromRow, move.fromCol, move.toRow, move.toCol, move.piece);
+    }
+}
+
+function handlePlayerJoined(message) {
+    console.log('Player joined:', message);
+    if (message.gameState && message.gameState.isGameFull) {
+        updateGameInfo(`Game ready - both players connected`);
+    }
+}
+
+function handleGameStart(message) {
+    console.log('Game started:', message);
+    updateConnectionStatus('Game Active');
+    updateGameInfo(`Game started! You are playing as ${myColor}`);
+}
+
+function handleGameEnd(message) {
+    console.log('Game ended:', message);
+    const gameState = message.gameState;
+    
+    if (gameState && gameState.winner) {
+        let endMessage = '';
+        if (gameState.winner === 'draw') {
+            endMessage = 'Game ended in a draw';
+        } else if (gameState.winner === myColor) {
+            endMessage = 'You won!';
+        } else {
+            endMessage = 'You lost';
+        }
+        
+        updateGameInfo(endMessage);
+        alert(endMessage);
+    }
+    
+    // Reset game mode to local
+    gameMode = 'local';
+    gameId = null;
+    myColor = null;
+}
+
+function handlePlayerResign(message) {
+    const resignedPlayerName = message.playerName;
+    if (message.playerId !== getSessionId()) {
+        alert(`${resignedPlayerName} resigned. You won!`);
+    }
+}
+
+function handleDrawOffer(message) {
+    if (message.playerId !== getSessionId()) {
+        const accept = confirm(`${message.playerName} offered a draw. Do you accept?`);
+        if (accept) {
+            acceptDraw();
+        } else {
+            declineDraw();
+        }
+    }
+}
+
+function handleDrawAccept(message) {
+    if (message.playerId !== getSessionId()) {
+        alert(`${message.playerName} accepted the draw offer. Game ended in a draw.`);
+    }
+}
+
+function handleDrawDecline(message) {
+    if (message.playerId !== getSessionId()) {
+        alert(`${message.playerName} declined the draw offer. Game continues.`);
+    }
+}
+
+function handlePlayerDisconnected(message) {
+    updateGameInfo(`${message.playerName} disconnected`);
+    alert(`${message.playerName} disconnected from the game.`);
+}
+
+function handleGameError(message) {
+    console.error('Game error:', message.error);
+    alert('Game error: ' + message.error);
+}
+
+// Game action functions - ADD these for multiplayer functionality
+function sendMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece) {
+    if (gameMode === 'multiplayer' && stompClient && gameId) {
+        const move = {
+            fromRow: fromRow,
+            fromCol: fromCol,
+            toRow: toRow,
+            toCol: toCol,
+            piece: piece,
+            capturedPiece: capturedPiece
+        };
+        
+        const moveMessage = {
+            type: 'move',
+            gameId: gameId,
+            playerId: getSessionId(),
+            playerName: playerName,
+            move: move
+        };
+        
+        stompClient.send(`/app/game/${gameId}/move`, {}, JSON.stringify(moveMessage));
+    }
+}
+
+function resignGame() {
+    if (gameMode === 'multiplayer' && stompClient && gameId) {
+        const resignMessage = {
+            type: 'resign',
+            gameId: gameId,
+            playerId: getSessionId(),
+            playerName: playerName
+        };
+        
+        stompClient.send(`/app/game/${gameId}/resign`, {}, JSON.stringify(resignMessage));
+    } else {
+        // Local game resign logic
+        if (confirm('Are you sure you want to resign?')) {
+            alert('You resigned the game.');
+            if (typeof resetGame === 'function') {
+                resetGame();
+            }
+        }
+    }
+}
+
+function offerDraw() {
+    if (gameMode === 'multiplayer' && stompClient && gameId) {
+        const drawMessage = {
+            type: 'drawOffer',
+            gameId: gameId,
+            playerId: getSessionId(),
+            playerName: playerName
+        };
+        
+        stompClient.send(`/app/game/${gameId}/draw-offer`, {}, JSON.stringify(drawMessage));
+        alert('Draw offer sent to opponent.');
+    }
+}
+
+function acceptDraw() {
+    if (gameMode === 'multiplayer' && stompClient && gameId) {
+        const acceptMessage = {
+            type: 'drawAccept',
+            gameId: gameId,
+            playerId: getSessionId(),
+            playerName: playerName
+        };
+        
+        stompClient.send(`/app/game/${gameId}/draw-accept`, {}, JSON.stringify(acceptMessage));
+    }
+}
+
+function declineDraw() {
+    if (gameMode === 'multiplayer' && stompClient && gameId) {
+        const declineMessage = {
+            type: 'drawDecline',
+            gameId: gameId,
+            playerId: getSessionId(),
+            playerName: playerName
+        };
+        
+        stompClient.send(`/app/game/${gameId}/draw-decline`, {}, JSON.stringify(declineMessage));
+    }
+}
+
+// Disconnect from multiplayer - UPDATE your existing function
+function disconnectMultiplayer() {
+    if (stompClient && isConnected) {
+        if (gameId) {
+            const disconnectMessage = {
+                type: 'disconnect',
+                gameId: gameId,
+                playerId: getSessionId(),
+                playerName: playerName
+            };
+            
+            stompClient.send(`/app/game/${gameId}/disconnect`, {}, JSON.stringify(disconnectMessage));
+        }
+        
+        // Cancel any pending match search
+        if (waitingForOpponent) {
+            cancelRandomMatch();
+        }
+        
+        stompClient.disconnect();
+        stompClient = null;
+        isConnected = false;
+        gameId = null;
+        myColor = null;
+        waitingForOpponent = false;
+        gameMode = 'local';
+        
+        updateConnectionStatus('Local Game Mode');
+        updateGameInfo('');
+        hideWaitingStatus();
+    }
+}
+
+// Handle page unload to clean up connections
+window.addEventListener('beforeunload', function() {
+    if (waitingForOpponent) {
+        cancelRandomMatch();
+    }
+    disconnectMultiplayer();
+});
 
 function resetGame() {
     if (game.isMultiplayer) game.resetToLocal();

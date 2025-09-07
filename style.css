@@ -4,6 +4,202 @@
     box-sizing: border-box;
 }
 
+/* Add these styles to your existing style.css file */
+
+/* Waiting Status Styles */
+.waiting-status {
+    text-align: center;
+    padding: 20px;
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    margin-top: 15px;
+    border: 2px solid var(--accent-color);
+}
+
+.waiting-spinner {
+    font-size: 2em;
+    animation: spin 2s linear infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.waiting-message {
+    font-size: 1.1em;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.waiting-timer {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    margin-bottom: 15px;
+    font-family: monospace;
+    background: rgba(0, 0, 0, 0.1);
+    padding: 5px 10px;
+    border-radius: 15px;
+    display: inline-block;
+}
+
+/* Disabled board during opponent's turn */
+.chessboard.disabled {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.chessboard.disabled::after {
+    content: "Opponent's Turn";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-weight: bold;
+    z-index: 1000;
+}
+
+/* Connection status styling */
+.connection-status {
+    background: var(--accent-color);
+    color: white;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: 500;
+    display: inline-block;
+}
+
+.game-info-panel {
+    background: var(--bg-secondary);
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-top: 10px;
+    font-size: 0.95em;
+    color: var(--text-secondary);
+}
+
+/* Match status indicators */
+.match-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+}
+
+.match-status.searching {
+    color: var(--warning-color, orange);
+}
+
+.match-status.connected {
+    color: var(--success-color, green);
+}
+
+.match-status.error {
+    color: var(--error-color, red);
+}
+
+/* Enhanced multiplayer modal */
+.multiplayer-dialog {
+    min-height: 300px;
+    position: relative;
+}
+
+.player-name-section {
+    margin-bottom: 20px;
+}
+
+.player-name-section label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.player-name-section input {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid var(--border-color);
+    border-radius: 5px;
+    font-size: 1em;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.player-name-section input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+/* Multiplayer button enhancements */
+.multiplayer-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn-join-random {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+.btn-join-random:hover {
+    background: linear-gradient(135deg, #45a049, #3d8b40);
+}
+
+.btn-create {
+    background: linear-gradient(135deg, #2196F3, #1976D2);
+}
+
+.btn-create:hover {
+    background: linear-gradient(135deg, #1976D2, #1565C0);
+}
+
+.btn-join-specific {
+    background: linear-gradient(135deg, #FF9800, #F57C00);
+}
+
+.btn-join-specific:hover {
+    background: linear-gradient(135deg, #F57C00, #E65100);
+}
+
+/* Game status panel improvements */
+.game-status-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin: 15px 0;
+    padding: 15px;
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .waiting-status {
+        padding: 15px;
+    }
+    
+    .waiting-message {
+        font-size: 1em;
+    }
+    
+    .multiplayer-buttons {
+        gap: 8px;
+    }
+    
+    .game-status-panel {
+        padding: 10px;
+    }
+}
+
 body {
     font-family: 'Arial', sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
