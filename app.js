@@ -435,6 +435,123 @@ class ChessGame {
     }
 }
 
+async connectToWebSocket(callback) {
+    // Use your existing backend URL - update this to match your WebSocket endpoint
+    const socket = new SockJS(BACKEND_URL + '/chess-websocket');
+    stompClient = Stomp.over(socket);
+    
+    // Disable debug logging
+    stompClient.debug = null;
+    
+    const connectHeaders = {
+        'playerName': playerName || 'Anonymous'
+    };
+    
+    stompClient.connect(connectHeaders, function(frame) {
+        console.log('Connected to WebSocket:', frame);
+        isConnected = true;
+        
+        // Subscribe to match notifications
+        stompClient.subscribe('/user/queue/match', function(message) {
+            handleMatchMessage(JSON.parse(message.body));
+        });
+        
+        // Subscribe to game updates if already in a game
+        if (gameId) {
+            stompClient.subscribe('/topic/game/' + gameId, function(gameMessage) {
+                handleGameMessage(JSON.parse(gameMessage.body));
+            });
+        }
+        
+        if (callback) callback();
+        
+    }, function(error) {
+        console.error('WebSocket connection failed:', error);
+        isConnected = false;
+        updateConnectionStatus('Connection failed');
+        hideWaitingStatus();
+        alert('Failed to connect to game server. Please check your internet connection and try again.');
+    });
+}
+
+// Function to request random match
+ requestRandomMatch() {
+    if (stompClient && isConnected) {
+        const matchRequest = {
+            playerName: playerName,
+            type: 'RANDOM_MATCH'
+        };
+        
+        try {
+            stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
+            waitingForOpponent = true;
+            updateConnectionStatus('Searching for opponent...');
+        } catch (error) {
+            console.error('Error sending match request:', error);
+            hideWaitingStatus();
+            alert('Failed to start matchmaking. Please try again.');
+        }
+    }
+}
+
+// Handle match-related messages - UPDATE your existing function
+ handleMatchMessage(message) {
+    console.log('Match message received:', message);
+    
+    switch(message.type) {
+        case 'MATCH_FOUND':
+            handleMatchFound(message);
+            break;
+        case 'WAITING_FOR_OPPONENT':
+            handleWaitingForOpponent(message);
+            break;
+        case 'MATCH_CANCELLED':
+            handleMatchCancelled(message);
+            break;
+        case 'MATCH_TIMEOUT':
+            handleMatchTimeout(message);
+            break;
+        case 'MATCH_ERROR':
+            handleMatchError(message);
+            break;
+        default:
+            console.log('Unknown match message type:', message.type);
+    }
+}
+
+// Handle when a match is found
+ handleMatchFound(message) {
+    gameId = message.gameId;
+    myColor = message.playerColor;
+    waitingForOpponent = false;
+    
+    hideWaitingStatus();
+    closeMultiplayerMenu();
+    
+    // Set up the game
+    updateConnectionStatus(`Matched! Game ID: ${gameId}`);
+    updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
+    
+    // Subscribe to specific game updates
+    stompClient.subscribe(`/topic/game/${gameId}`, function(gameMessage) {
+        handleGameMessage(JSON.parse(gameMessage.body));
+    });
+    
+    // Send join message to the game
+    const joinMessage = {
+        type: 'join',
+        gameId: gameId,
+        playerId: getSessionId(),
+        playerName: playerName
+    };
+    
+    stompClient.send(`/app/game/${gameId}/join`, {}, JSON.stringify(joinMessage));
+    
+    // Start the game
+    startMultiplayerGame(message.playerColor, message.opponentName);
+}
+
+
     async joinSpecificGame() {
         const playerName = document.getElementById('playerNameInput').value.trim();
         const gameId = document.getElementById('gameIdInput').value.trim();
@@ -1331,121 +1448,8 @@ let gameMode = 'local'; // 'local' or 'multiplayer'
 
 
 // Function to connect to WebSocket - UPDATE your existing function
-function connectToWebSocket(callback) {
-    // Use your existing backend URL - update this to match your WebSocket endpoint
-    const socket = new SockJS(BACKEND_URL + '/chess-websocket');
-    stompClient = Stomp.over(socket);
-    
-    // Disable debug logging
-    stompClient.debug = null;
-    
-    const connectHeaders = {
-        'playerName': playerName || 'Anonymous'
-    };
-    
-    stompClient.connect(connectHeaders, function(frame) {
-        console.log('Connected to WebSocket:', frame);
-        isConnected = true;
-        
-        // Subscribe to match notifications
-        stompClient.subscribe('/user/queue/match', function(message) {
-            handleMatchMessage(JSON.parse(message.body));
-        });
-        
-        // Subscribe to game updates if already in a game
-        if (gameId) {
-            stompClient.subscribe('/topic/game/' + gameId, function(gameMessage) {
-                handleGameMessage(JSON.parse(gameMessage.body));
-            });
-        }
-        
-        if (callback) callback();
-        
-    }, function(error) {
-        console.error('WebSocket connection failed:', error);
-        isConnected = false;
-        updateConnectionStatus('Connection failed');
-        hideWaitingStatus();
-        alert('Failed to connect to game server. Please check your internet connection and try again.');
-    });
-}
 
-// Function to request random match
-function requestRandomMatch() {
-    if (stompClient && isConnected) {
-        const matchRequest = {
-            playerName: playerName,
-            type: 'RANDOM_MATCH'
-        };
-        
-        try {
-            stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
-            waitingForOpponent = true;
-            updateConnectionStatus('Searching for opponent...');
-        } catch (error) {
-            console.error('Error sending match request:', error);
-            hideWaitingStatus();
-            alert('Failed to start matchmaking. Please try again.');
-        }
-    }
-}
 
-// Handle match-related messages - UPDATE your existing function
-function handleMatchMessage(message) {
-    console.log('Match message received:', message);
-    
-    switch(message.type) {
-        case 'MATCH_FOUND':
-            handleMatchFound(message);
-            break;
-        case 'WAITING_FOR_OPPONENT':
-            handleWaitingForOpponent(message);
-            break;
-        case 'MATCH_CANCELLED':
-            handleMatchCancelled(message);
-            break;
-        case 'MATCH_TIMEOUT':
-            handleMatchTimeout(message);
-            break;
-        case 'MATCH_ERROR':
-            handleMatchError(message);
-            break;
-        default:
-            console.log('Unknown match message type:', message.type);
-    }
-}
-
-// Handle when a match is found
-function handleMatchFound(message) {
-    gameId = message.gameId;
-    myColor = message.playerColor;
-    waitingForOpponent = false;
-    
-    hideWaitingStatus();
-    closeMultiplayerMenu();
-    
-    // Set up the game
-    updateConnectionStatus(`Matched! Game ID: ${gameId}`);
-    updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
-    
-    // Subscribe to specific game updates
-    stompClient.subscribe(`/topic/game/${gameId}`, function(gameMessage) {
-        handleGameMessage(JSON.parse(gameMessage.body));
-    });
-    
-    // Send join message to the game
-    const joinMessage = {
-        type: 'join',
-        gameId: gameId,
-        playerId: getSessionId(),
-        playerName: playerName
-    };
-    
-    stompClient.send(`/app/game/${gameId}/join`, {}, JSON.stringify(joinMessage));
-    
-    // Start the game
-    startMultiplayerGame(message.playerColor, message.opponentName);
-}
 
 // Handle waiting for opponent
 function handleWaitingForOpponent(message) {
