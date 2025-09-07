@@ -388,30 +388,30 @@ class ChessGame {
             alert('Failed to create game: ' + error.message);
         }
 }
-    async joinRandomGame() {
-        const playerName = document.getElementById('playerNameInput').value.trim();
-        if (!playerName) { alert('Please enter your name'); return; }
-        this.playerName = playerName;
-        try {
-            await this.connectToServer();
-            const response = await fetch(`${BACKEND_URL}/api/games/join-random`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ playerId: this.playerId, playerName: this.playerName })
-            });
-            if (response.ok) {
-                const gameSession = await response.json();
-                if (gameSession) {
-                    this.handleGameJoined(gameSession);
-                    closeMultiplayerMenu();
-                } else {
-                    alert('No available games to join. Try creating a new game.');
-                }
-            } else { throw new Error('Failed to join random game'); }
-        } catch (error) {
-            console.error('Error joining random game:', error);
-            alert('Failed to join game. Make sure the server is running on localhost:8080');
-        }
-    }
+    // async joinRandomGame() {
+    //     const playerName = document.getElementById('playerNameInput').value.trim();
+    //     if (!playerName) { alert('Please enter your name'); return; }
+    //     this.playerName = playerName;
+    //     try {
+    //         await this.connectToServer();
+    //         const response = await fetch(`${BACKEND_URL}/api/games/join-random`, {
+    //             method: 'POST', headers: { 'Content-Type': 'application/json' },
+    //             body: JSON.stringify({ playerId: this.playerId, playerName: this.playerName })
+    //         });
+    //         if (response.ok) {
+    //             const gameSession = await response.json();
+    //             if (gameSession) {
+    //                 this.handleGameJoined(gameSession);
+    //                 closeMultiplayerMenu();
+    //             } else {
+    //                 alert('No available games to join. Try creating a new game.');
+    //             }
+    //         } else { throw new Error('Failed to join random game'); }
+    //     } catch (error) {
+    //         console.error('Error joining random game:', error);
+    //         alert('Failed to join game. Make sure the server is running on localhost:8080');
+    //     }
+    // }
 
     async joinSpecificGame() {
         const playerName = document.getElementById('playerNameInput').value.trim();
