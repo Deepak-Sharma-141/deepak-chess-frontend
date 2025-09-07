@@ -1333,7 +1333,7 @@ let gameMode = 'local'; // 'local' or 'multiplayer'
 // Function to connect to WebSocket - UPDATE your existing function
 function connectToWebSocket(callback) {
     // Use your existing backend URL - update this to match your WebSocket endpoint
-    const socket = new SockJS('https://chess-backend-hu0h.onrender.com/chess-websocket');
+    const socket = new SockJS(BACKEND_URL + '/chess-websocket');
     stompClient = Stomp.over(socket);
     
     // Disable debug logging
