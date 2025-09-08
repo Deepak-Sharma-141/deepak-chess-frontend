@@ -478,6 +478,56 @@ body.dark .multiplayer-dialog {
     gap: 8px;
 }
 
+.waiting-status {
+    text-align: center;
+    padding: 20px;
+}
+
+.waiting-content {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+}
+
+.waiting-spinner {
+    font-size: 2em;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.waiting-message {
+    font-size: 1.1em;
+    color: #333;
+}
+
+.waiting-timer, .waiting-timeout {
+    font-family: monospace;
+    font-size: 1em;
+}
+
+.waiting-timeout {
+    color: #666;
+    transition: color 0.3s ease;
+}
+
+.btn-cancel {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-cancel:hover {
+    background-color: #c82333;
+}
+
 /* Add this CSS to your existing styles
 .waiting-status {
     display: none;
