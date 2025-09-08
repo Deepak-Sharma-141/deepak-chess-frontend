@@ -478,7 +478,7 @@ body.dark .multiplayer-dialog {
     gap: 8px;
 }
 
-.waiting-status {
+/* .waiting-status {
     text-align: center;
     padding: 20px;
 }
@@ -526,7 +526,7 @@ body.dark .multiplayer-dialog {
 
 .btn-cancel:hover {
     background-color: #c82333;
-}
+} */
 
 /* Add this CSS to your existing styles
 .waiting-status {
