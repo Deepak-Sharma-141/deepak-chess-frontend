@@ -1545,19 +1545,19 @@ let game = new ChessGame();
 
 
 // Global variables for multiplayer (add these if not already present)
-let stompClient = null;
-let gameId = null;
-let playerName = null;
-let isConnected = false;
-let waitingForOpponent = false;
-let myColor = null;
-let gameMode = 'local'; // 'local' or 'multiplayer'
+// let stompClient = null;
+// let gameId = null;
+// let playerName = null;
+// let isConnected = false;
+// let waitingForOpponent = false;
+// let myColor = null;
+// let gameMode = 'local'; // 'local' or 'multiplayer'
 
 
 // Function to connect to WebSocket - UPDATE your existing function
 function connectToWebSocket(callback) {
     // Use your existing backend URL - update this to match your WebSocket endpoint
-    const socket = new SockJS(BACKENDURL + '/chess-websocket');
+    const socket = new SockJS(BACKEND_URL + '/chess-websocket');
     stompClient = Stomp.over(socket);
     
     // Disable debug logging
