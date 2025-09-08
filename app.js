@@ -81,6 +81,11 @@ class ChessGame {
                         clearTimeout(connectionTimeout);
                         console.log('Connected successfully:', frame);
                         this.connected = true;
+
+                        if (frame.headers && frame.headers['user-name']) {
+                            this.sessionId = frame.headers['user-name'];
+                            console.log('Session ID:', this.sessionId);
+                        }
                         this.updateGameStatus('Connected to server', 'connected');
                         resolve();
                     },
@@ -102,6 +107,7 @@ class ChessGame {
                         this.updateGameStatus(errorMessage, 'disconnected');
                         reject(error);
                     }
+                    
                 );
             } catch (error) {
                 console.error('Failed to create WebSocket connection:', error);
@@ -506,6 +512,12 @@ handleMatchFound(message) {
     this.gameId = message.gameId;
     this.playerColor = message.playerColor;
     this.isMultiplayer = true;
+
+    
+    // IMPORTANT: Set gameStarted to true for multiplayer matches
+    this.gameStarted = true;
+    this.bothPlayersReady = true;
+    
     
     // Subscribe to game-specific channels
     this.subscribeToGame(this.gameId);
@@ -522,6 +534,16 @@ handleMatchFound(message) {
     if (message.gameState) {
         this.updateFromGameState(message.gameState);
     }
+
+    // Start timer if enabled
+    if (this.timerEnabled) {
+        this.startTimer();
+    }
+
+    // Update displays and controls
+    this.updateControlStates();
+    this.updateStatus();
+    
     
     console.log('Match setup complete - Game ID:', this.gameId, 'Color:', this.playerColor);
 }
@@ -1519,7 +1541,7 @@ let game = new ChessGame();
     }
 })();
 
-// Update your existing app.js with these modifications for random matchmaking
+
 
 // Global variables for multiplayer (add these if not already present)
 let stompClient = null;
@@ -1529,8 +1551,6 @@ let isConnected = false;
 let waitingForOpponent = false;
 let myColor = null;
 let gameMode = 'local'; // 'local' or 'multiplayer'
-
-// Function to join random game - REPLACE your existing joinRandomGame function
 
 
 // Function to connect to WebSocket - UPDATE your existing function
@@ -1593,129 +1613,10 @@ function requestRandomMatch() {
     }
 }
 
-// Handle match-related messages - UPDATE your existing function
-function handleMatchMessage(message) {
-    console.log('Match message received:', message);
-    
-    switch(message.type) {
-        case 'MATCH_FOUND':
-            handleMatchFound(message);
-            break;
-        case 'WAITING_FOR_OPPONENT':
-            handleWaitingForOpponent(message);
-            break;
-        case 'MATCH_CANCELLED':
-            handleMatchCancelled(message);
-            break;
-        case 'MATCH_TIMEOUT':
-            handleMatchTimeout(message);
-            break;
-        case 'MATCH_ERROR':
-            handleMatchError(message);
-            break;
-        default:
-            console.log('Unknown match message type:', message.type);
-    }
-}
-
-// Handle when a match is found
-function handleMatchFound(message) {
-    gameId = message.gameId;
-    myColor = message.playerColor;
-    waitingForOpponent = false;
-    
-    hideWaitingStatus();
-    closeMultiplayerMenu();
-    
-    // Set up the game
-    updateConnectionStatus(`Matched! Game ID: ${gameId}`);
-    updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
-    
-    // Subscribe to specific game updates
-    stompClient.subscribe(`/topic/game/${gameId}`, function(gameMessage) {
-        handleGameMessage(JSON.parse(gameMessage.body));
-    });
-    
-    // Send join message to the game
-    const joinMessage = {
-        type: 'join',
-        gameId: gameId,
-        playerId: getSessionId(),
-        playerName: playerName
-    };
-    
-    stompClient.send(`/app/game/${gameId}/join`, {}, JSON.stringify(joinMessage));
-    
-    // Start the game
-    startMultiplayerGame(message.playerColor, message.opponentName);
-}
-
-
-
-// Handle waiting for opponent
-function handleWaitingForOpponent(message) {
-    updateConnectionStatus('Waiting for opponent...');
-    showWaitingStatus(message.message || 'Searching for an opponent...');
-    
-    // Update queue size if provided
-    if (message.queueSize !== undefined) {
-        updateWaitingMessage(`Searching for opponent... (${message.queueSize} players in queue)`);
-    }
-}
-
-// Handle match cancellation
-function handleMatchCancelled(message) {
-    waitingForOpponent = false;
-    hideWaitingStatus();
-    updateConnectionStatus('Match search cancelled');
-    
-    if (message.message) {
-        alert(message.message);
-    }
-}
-
-// Handle match timeout
-function handleMatchTimeout(message) {
-    waitingForOpponent = false;
-    hideWaitingStatus();
-    updateConnectionStatus('Match search timed out');
-    
-    alert(message.message || 'No opponent found within the time limit. Please try again.');
-}
-
-// Handle match error
-function handleMatchError(message) {
-    waitingForOpponent = false;
-    hideWaitingStatus();
-    updateConnectionStatus('Match error');
-    
-    alert('Error: ' + (message.message || 'An error occurred during matchmaking'));
-}
-
-// Cancel random match search
-function cancelRandomMatch() {
-    if (stompClient && waitingForOpponent) {
-        const cancelRequest = {
-            playerName: playerName
-        };
-        
-        stompClient.send('/app/cancelRandomMatch', {}, JSON.stringify(cancelRequest));
-        waitingForOpponent = false;
-        hideWaitingStatus();
-        updateConnectionStatus('Match search cancelled');
-    }
-}
-
 // Get session ID (you might need to implement this based on your session management)
 function getSessionId() {
-    // If you have a way to get the session ID, use it
-    // Otherwise, you can use the WebSocket session or generate a unique ID
-    if (stompClient && stompClient.ws) {
-        return stompClient.ws._transport.url.split('/')[5]; // Extract session ID from SockJS URL
-    }
-    
-    // Fallback: generate a unique ID if no session available
-    return 'player-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    // Use the same playerId that ChessGame generates
+    return game.playerId;
 }
 
 // Start multiplayer game - ADD this function if it doesn't exist
@@ -1752,73 +1653,6 @@ function updateBoardInteraction() {
     }
 }
 
-// UI Helper functions - UPDATE these if they exist, ADD if they don't
-function showWaitingStatus(message) {
-    const modal = document.getElementById('multiplayerModal');
-    const dialog = modal.querySelector('.multiplayer-dialog');
-    
-    let waitingDiv = document.getElementById('waitingStatus');
-    if (!waitingDiv) {
-        waitingDiv = document.createElement('div');
-        waitingDiv.id = 'waitingStatus';
-        waitingDiv.className = 'waiting-status';
-        dialog.appendChild(waitingDiv);
-    }
-    
-    waitingDiv.innerHTML = `
-        <div class="waiting-spinner">⏳</div>
-        <div class="waiting-message">${message}</div>
-        <div class="waiting-timer" id="waitingTimer">Time elapsed: 0:00</div>
-        <button class="btn btn-cancel" onclick="cancelRandomMatch()">Cancel Search</button>
-    `;
-    
-    // Hide other options while waiting
-    const options = dialog.querySelector('.multiplayer-options');
-    options.style.display = 'none';
-    waitingDiv.style.display = 'block';
-    
-    // Start timer
-    startWaitingTimer();
-}
-
-function hideWaitingStatus() {
-    const waitingDiv = document.getElementById('waitingStatus');
-    if (waitingDiv) {
-        waitingDiv.style.display = 'none';
-    }
-    
-    // Stop timer
-    stopWaitingTimer();
-    
-    const options = document.querySelector('.multiplayer-options');
-    if (options) {
-        options.style.display = 'block';
-    }
-}
-
-function updateWaitingMessage(message) {
-    const waitingMessage = document.querySelector('.waiting-message');
-    if (waitingMessage) {
-        waitingMessage.textContent = message;
-    }
-}
-
-// Timer functions for waiting status
-let waitingTimerInterval = null;
-let waitingStartTime = null;
-
-function startWaitingTimer() {
-    waitingStartTime = Date.now();
-    waitingTimerInterval = setInterval(updateWaitingTimer, 1000);
-}
-
-function stopWaitingTimer() {
-    if (waitingTimerInterval) {
-        clearInterval(waitingTimerInterval);
-        waitingTimerInterval = null;
-        waitingStartTime = null;
-    }
-}
 
 function updateWaitingTimer() {
     if (!waitingStartTime) return;
