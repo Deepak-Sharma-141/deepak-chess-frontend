@@ -1,4 +1,5 @@
       const BACKEND_URL = 'https://chess-backend-hu0h.onrender.com/api';
+      const BACKENDURL='https://chess-backend-hu0h.onrender.com';
     //  const BACKEND_URL ='deepak-chess-backend-production.up.railway.app';
      
 class ChessGame {
@@ -1556,7 +1557,7 @@ let gameMode = 'local'; // 'local' or 'multiplayer'
 // Function to connect to WebSocket - UPDATE your existing function
 function connectToWebSocket(callback) {
     // Use your existing backend URL - update this to match your WebSocket endpoint
-    const socket = new SockJS(BACKEND_URL + '/chess-websocket');
+    const socket = new SockJS(BACKENDURL + '/chess-websocket');
     stompClient = Stomp.over(socket);
     
     // Disable debug logging
