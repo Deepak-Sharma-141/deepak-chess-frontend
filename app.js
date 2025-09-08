@@ -1557,7 +1557,7 @@ let game = new ChessGame();
 // Function to connect to WebSocket - UPDATE your existing function
 function connectToWebSocket(callback) {
     // Use your existing backend URL - update this to match your WebSocket endpoint
-    const socket = new SockJS(BACKEND_URL + '/chess-websocket');
+    const socket = new SockJS(BACKENDURL + '/chess-websocket');
     stompClient = Stomp.over(socket);
     
     // Disable debug logging
