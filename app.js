@@ -1,5 +1,4 @@
       const BACKEND_URL = 'https://chess-backend-hu0h.onrender.com/api';
-      const BACKENDURL='https://chess-backend-hu0h.onrender.com';
     //  const BACKEND_URL ='deepak-chess-backend-production.up.railway.app';
      
 class ChessGame {
@@ -85,6 +84,14 @@ class ChessGame {
                         reject(new Error('Connection timeout'));
                     }
                 }, 10000); // 10 second timeout
+
+
+             // CRITICAL FIX: Connect with headers to help session identification
+                const connectHeaders = {
+                    'playerName': this.playerName || 'Anonymous',
+                    'playerId': this.playerId
+                };
+
                 
                 this.stompClient.connect({}, 
                     (frame) => {
@@ -97,10 +104,22 @@ class ChessGame {
                         //     this.playerId = frame.headers['user-name'];
                         //     console.log('Backend Session ID:', this.playerId);
                         // }
-                        if (frame.headers && frame.headers['user-name']) {
-                            this.sessionId = frame.headers['user-name'];
-                            console.log('Session ID:', this.sessionId);
-                        }
+                        // if (frame.headers && frame.headers['user-name']) {
+                        //     this.sessionId = frame.headers['user-name'];
+                        //     console.log('Session ID:', this.sessionId);
+                        // }
+                        // Try to extract session ID from various sources
+                    if (frame.headers && frame.headers['user-name']) {
+                        this.sessionId = frame.headers['user-name'];
+                        console.log('Backend Session ID from user-name:', this.sessionId);
+                    } else if (frame.headers && frame.headers['session']) {
+                        this.sessionId = frame.headers['session'];
+                        console.log('Backend Session ID from session:', this.sessionId);
+                    } else {
+                        // Fallback: use the WebSocket session
+                        this.sessionId = this.stompClient.ws._transport.url.split('/')[5]; // Extract from URL
+                        console.log('Fallback Session ID from URL:', this.sessionId);
+                    }
                         this.updateGameStatus('Connected to server', 'connected');
                         resolve();
                     },
@@ -427,20 +446,70 @@ async joinRandomGame() {
     
     this.playerName = playerName;
     
-    try {
+//     try {
+//         // Connect to WebSocket first
+//         await this.connectToServer();
+        
+//         // Subscribe to match queue messages
+//         this.stompClient.subscribe('/user/queue/match', (message) => {
+//             console.log('Match message received:', message.body);
+//             try {
+//                 const matchMessage = JSON.parse(message.body);
+//                 this.handleMatchMessage(matchMessage);
+//             } catch (error) {
+//                 console.error('Error parsing match message:', error);
+//             }
+//         });
+        
+//         // Send matchmaking request via WebSocket
+//         const matchRequest = {
+//             playerName: this.playerName,
+//             type: 'RANDOM_MATCH'
+//         };
+        
+//          console.log('Sending match request:', matchRequest);
+//         this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
+        
+//         // Show waiting UI
+//         this.waitingForMatch=true;
+//         this.showWaitingStatus('Searching for an opponent...');
+//         this.updateGameStatus('Searching for opponent...', 'searching');
+        
+//         console.log('Random match request sent for:', this.playerName);
+        
+//     } catch (error) {
+//         console.error('Error in random matchmaking:', error);
+//         alert('Failed to start matchmaking: ' + error.message);
+//         this.hideWaitingStatus();
+//     }
+// }
+try {
         // Connect to WebSocket first
+        console.log('=== JOINING RANDOM GAME ===');
+        console.log('Player Name:', this.playerName);
+        console.log('Player ID:', this.playerId);
+        
         await this.connectToServer();
+        console.log('WebSocket connected, sessionId:', this.sessionId);
         
         // Subscribe to match queue messages
+        console.log('Subscribing to match queue...');
         this.stompClient.subscribe('/user/queue/match', (message) => {
-            console.log('Match message received:', message.body);
+            console.log('=== MATCH MESSAGE RECEIVED ===');
+            console.log('Raw message:', message.body);
+            
             try {
                 const matchMessage = JSON.parse(message.body);
+                console.log('Parsed message:', matchMessage);
                 this.handleMatchMessage(matchMessage);
             } catch (error) {
                 console.error('Error parsing match message:', error);
+                console.error('Message body was:', message.body);
             }
         });
+        
+        // Small delay to ensure subscription is registered
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // Send matchmaking request via WebSocket
         const matchRequest = {
@@ -448,20 +517,26 @@ async joinRandomGame() {
             type: 'RANDOM_MATCH'
         };
         
-         console.log('Sending match request:', matchRequest);
+        console.log('Sending match request:', matchRequest);
+        console.log('Current sessionId:', this.sessionId);
+        console.log('STOMP client state:', this.stompClient.connected);
+        
+        // Send the request
         this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
         
         // Show waiting UI
-        this.waitingForMatch=true;
+        this.waitingForMatch = true;
         this.showWaitingStatus('Searching for an opponent...');
         this.updateGameStatus('Searching for opponent...', 'searching');
         
-        console.log('Random match request sent for:', this.playerName);
+        console.log('Random match request sent successfully');
+        console.log('===========================');
         
     } catch (error) {
         console.error('Error in random matchmaking:', error);
         alert('Failed to start matchmaking: ' + error.message);
         this.hideWaitingStatus();
+        this.waitingForMatch = false;
     }
 }
 
