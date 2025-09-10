@@ -24,7 +24,7 @@ class ChessGame {
         
         // Multiplayer properties
         this.isMultiplayer = false;
-       // this.playerId = this.generatePlayerId();
+        this.playerId = this.generatePlayerId();
         this.playerId = null;
         this.playerName = '';
         this.playerColor = null;
