@@ -13,7 +13,8 @@ class ChessGame {
         this.lastMove = null;
         this.pendingPromotion = null;
 
-        this.sessionId = null;  // Will be set by server connection
+       this.sessionId = null;  // Will be set by WebSocket connection
+        this.playerId = null;   // Use sessionId for everything
 
         //timer properties
         this.timerEnabled = false;
@@ -25,7 +26,7 @@ class ChessGame {
         
         // Multiplayer properties
         this.isMultiplayer = false;
-        this.playerId = this.generatePlayerId();
+        //this.playerId = this.generatePlayerId();
        // this.playerId = null;
         this.playerName = '';
         this.playerColor = null;
@@ -87,10 +88,10 @@ class ChessGame {
 
 
              // CRITICAL FIX: Connect with headers to help session identification
-                const connectHeaders = {
-                    'playerName': this.playerName || 'Anonymous',
-                    'playerId': this.playerId
-                };
+                // const connectHeaders= {
+                //     'playerName': this.playerName || 'Anonymous',
+                //     'playerId': this.playerId
+                // };
 
                 
                 this.stompClient.connect({}, 
@@ -109,28 +110,47 @@ class ChessGame {
                         //     console.log('Session ID:', this.sessionId);
                         // }
                         // Try to extract session ID from various sources
-                    if (frame.headers && frame.headers['user-name']) {
-                        this.sessionId = frame.headers['user-name'];
-                        console.log('Backend Session ID from user-name:', this.sessionId);
-                    } else if (frame.headers && frame.headers['session']) {
-                        this.sessionId = frame.headers['session'];
-                        console.log('Backend Session ID from session:', this.sessionId);
-                    // } else {
-                    //     // Fallback: use the WebSocket session
-                    //     this.sessionId = this.stompClient.ws._transport.url.split('/')[5]; // Extract from URL
-                    //     console.log('Fallback Session ID from URL:', this.sessionId);
+                    // if (frame.headers && frame.headers['user-name']) {
+                    //     this.sessionId = frame.headers['user-name'];
+                    //     console.log('Backend Session ID from user-name:', this.sessionId);
+                    // } else if (frame.headers && frame.headers['session']) {
+                    //     this.sessionId = frame.headers['session'];
+                    //     console.log('Backend Session ID from session:', this.sessionId);
+                    // // } else {
+                    // //     // Fallback: use the WebSocket session
+                    // //     this.sessionId = this.stompClient.ws._transport.url.split('/')[5]; // Extract from URL
+                    // //     console.log('Fallback Session ID from URL:', this.sessionId);
+                    // // }
+                    //     }else {
+                    //     // Fallback: use the WebSocket session from URL
+                    //     try {
+                    //         this.sessionId = this.stompClient.ws._transport.url.split('/')[5];
+                    //         console.log('Fallback Session ID from URL:', this.sessionId);
+                    //     } catch (e) {
+                    //         // Last resort: generate session ID
+                    //         this.sessionId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                    //         console.log('Generated Session ID:', this.sessionId);
+                    //     }
                     // }
-                        }else {
-                        // Fallback: use the WebSocket session from URL
-                        try {
-                            this.sessionId = this.stompClient.ws._transport.url.split('/')[5];
-                            console.log('Fallback Session ID from URL:', this.sessionId);
+                      try {
+                            const wsUrl = this.stompClient.ws._transport.url;
+                            console.log('WebSocket URL:', wsUrl);
+                            
+                            // Extract session ID from URL like: .../572/412abjyf/websocket
+                            const urlParts = wsUrl.split('/');
+                            this.sessionId = urlParts[urlParts.length - 2]; // Get the part before 'websocket'
+                            console.log('Extracted Session ID:', this.sessionId);
+                            
+                            // Use session ID as player ID
+                            this.playerId = this.sessionId;
+                            
                         } catch (e) {
-                            // Last resort: generate session ID
-                            this.sessionId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-                            console.log('Generated Session ID:', this.sessionId);
+                            console.error('Failed to extract session ID:', e);
+                            this.sessionId = 'fallback_' + Date.now();
+                            this.playerId = this.sessionId;
                         }
-                    }
+                        
+                       
                         this.updateGameStatus('Connected to server', 'connected');
                         resolve();
                     },
@@ -141,13 +161,14 @@ class ChessGame {
                         
                         // Provide more specific error messages
                         let errorMessage = 'Failed to connect to server';
-                        if (error.includes('timeout')) {
+                        if (error.includes && error.includes('timeout')) {
                             errorMessage = 'Connection timeout - server may be down';
-                        } else if (error.includes('CORS')) {
-                            errorMessage = 'CORS error - check server configuration';
-                        } else if (error.includes('Mixed Content')) {
-                            errorMessage = 'Mixed content error - use HTTPS';
-                        }
+                         }
+                          // } else if (error.includes('CORS')) {
+                        //     errorMessage = 'CORS error - check server configuration';
+                        // } else if (error.includes('Mixed Content')) {
+                        //     errorMessage = 'Mixed content error - use HTTPS';
+                        // }
                         
                         this.updateGameStatus(errorMessage, 'disconnected');
                         reject(error);
@@ -204,7 +225,7 @@ class ChessGame {
                     }
                 });
 
-                const playerSubscription = this.stompClient.subscribe(`/topic/game/${gameId}/player/${this.sessionId || this.playerId}`, (message) => {
+                this.stompClient.subscribe(`/topic/game/${gameId}/player/${this.sessionId }`, (message) => {
                     console.log('Received player message:', message.body);
                     try {
                         const gameMessage = JSON.parse(message.body);
@@ -215,8 +236,7 @@ class ChessGame {
                 });
 
                 console.log('Successfully subscribed to game channels');
-                console.log('Game subscription:', gameSubscription);
-                console.log('Player subscription:', playerSubscription);
+                
             }catch(error){
                 
                 //console.log('Successfully subscribed to game channels');
@@ -225,42 +245,42 @@ class ChessGame {
         
             }
         }
-        testMatchmaking() {
-            console.log('=== TESTING MATCHMAKING CONNECTION ===');
-            console.log('Current state:');
-            console.log('- connected:', this.connected);
-            console.log('- stompClient:', !!this.stompClient);
-            console.log('- sessionId:', this.sessionId);
-            console.log('- playerName:', this.playerName);
+        // testMatchmaking() {
+        //     console.log('=== TESTING MATCHMAKING CONNECTION ===');
+        //     console.log('Current state:');
+        //     console.log('- connected:', this.connected);
+        //     console.log('- stompClient:', !!this.stompClient);
+        //     console.log('- sessionId:', this.sessionId);
+        //     console.log('- playerName:', this.playerName);
             
-            if (!this.connected) {
-                console.log('Not connected. Run: await game.connectToServer()');
-                return;
-            }
+        //     if (!this.connected) {
+        //         console.log('Not connected. Run: await game.connectToServer()');
+        //         return;
+        //     }
             
-            // Test subscription
-            this.stompClient.subscribe('/user/queue/match', (message) => {
-                console.log('=== TEST MATCH MESSAGE ===');
-                console.log('Body:', message.body);
-                try {
-                    const parsed = JSON.parse(message.body);
-                    console.log('Parsed:', parsed);
-                    alert('Test message received: ' + parsed.type);
-                } catch (e) {
-                    console.error('Parse error:', e);
-                }
-            });
+        //     // Test subscription
+        //     this.stompClient.subscribe('/user/queue/match', (message) => {
+        //         console.log('=== TEST MATCH MESSAGE ===');
+        //         console.log('Body:', message.body);
+        //         try {
+        //             const parsed = JSON.parse(message.body);
+        //             console.log('Parsed:', parsed);
+        //             alert('Test message received: ' + parsed.type);
+        //         } catch (e) {
+        //             console.error('Parse error:', e);
+        //         }
+        //     });
             
-            // Send test request
-            const testRequest = {
-                playerName: 'TestPlayer_' + Date.now(),
-                type: 'RANDOM_MATCH'
-            };
+        //     // Send test request
+        //     const testRequest = {
+        //         playerName: 'TestPlayer_' + Date.now(),
+        //         type: 'RANDOM_MATCH'
+        //     };
             
-            console.log('Sending test request:', testRequest);
-            this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(testRequest));
-            console.log('Test request sent!');
-        }
+        //     console.log('Sending test request:', testRequest);
+        //     this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(testRequest));
+        //     console.log('Test request sent!');
+        // }
 
     handleGameMessage(message) {
         console.log('Game message received:', message);
@@ -459,7 +479,7 @@ class ChessGame {
         try {
             await this.connectToServer();
             
-            const response = await fetch(`${BACKEND_URL}/api/games/create`, {
+            const response = await fetch(`${BACKEND_URL}games/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 // body: JSON.stringify({ 
@@ -468,7 +488,7 @@ class ChessGame {
                 // })
 
                 body: JSON.stringify({ 
-                    playerId: this.sessionId || this.playerId, 
+                    playerId: this.sessionId , 
                     playerName: this.playerName 
                 })
             });
@@ -548,7 +568,7 @@ try {
         // Connect to WebSocket first
         console.log('=== JOINING RANDOM GAME ===');
         console.log('Player Name:', this.playerName);
-        console.log('Player ID:', this.playerId);
+        //console.log('Player ID:', this.playerId);
         
         await this.connectToServer();
         console.log('WebSocket connected, sessionId:', this.sessionId);
@@ -866,7 +886,7 @@ handleMatchTimeout(message) {
         this.gameId = gameId;
         try {
             await this.connectToServer();
-            const joinMessage = { type: 'join', playerId: this.playerId, playerName: this.playerName };
+            const joinMessage = { type: 'join', playerId: this.sessionId, playerName: this.playerName };
             this.subscribeToGame(this.gameId);
             this.stompClient.send(`/app/game/${this.gameId}/join`, {}, JSON.stringify(joinMessage));
             this.updateGameInfo(`Attempting to join game ${this.gameId}...`);
@@ -885,9 +905,9 @@ handleMatchTimeout(message) {
             console.log('My player ID:', this.playerId);
             
             // Fixed player color assignment - backend sends Player objects with 'id' field
-            if (gameState.whitePlayer && gameState.whitePlayer.id === this.playerId) {
+            if (gameState.whitePlayer && gameState.whitePlayer.id === this.sessionId) {
                 this.playerColor = 'white';
-            } else if (gameState.blackPlayer && gameState.blackPlayer.id === this.playerId) {
+            } else if (gameState.blackPlayer && gameState.blackPlayer.id === this.sessionId) {
                 this.playerColor = 'black';
             } else {
                 // Fallback: assign based on available slots
@@ -1098,7 +1118,7 @@ updateKingsFromBoard() {
     
     const move = {
         fromRow, fromCol, toRow, toCol,
-        playerId: this.playerId,
+        playerId: this.sessionId,
         playerColor: this.playerColor,
         piece: piece.type,
         capturedPiece: capturedPiece ? capturedPiece.type : null,
@@ -1106,7 +1126,7 @@ updateKingsFromBoard() {
         timestamp: new Date().toISOString()
     };
     
-    const moveMessage = { type: 'move', playerId: this.playerId, move };
+    const moveMessage = { type: 'move', playerId: this.sessionId, move };
     console.log('Sending move to server:', moveMessage);
     
     try {
