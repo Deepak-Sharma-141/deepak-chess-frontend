@@ -24,13 +24,20 @@ class ChessGame {
         
         // Multiplayer properties
         this.isMultiplayer = false;
-        this.playerId = this.generatePlayerId();
+       // this.playerId = this.generatePlayerId();
+        this.playerId = null;
         this.playerName = '';
         this.playerColor = null;
         this.gameId = null;
         this.stompClient = null;
         this.connected = false;
         this.bothPlayersReady = false;
+
+        // Matchmaking properties
+        this.waitingForMatch = false;
+        this.waitingStartTime = null;
+        this.waitingTimerInterval = null;
+
 
 
         this.initializeGame();
@@ -46,17 +53,17 @@ class ChessGame {
             try {
                 console.log('Attempting to connect to:', BACKEND_URL + '/chess-websocket');
                 
-                // Check if we're in a secure context
-                if (location.protocol === 'https:' && BACKEND_URL.startsWith('https:')) {
-                    console.log('Secure connection detected');
-                    this.hideSecurityWarning();
-                } else if (location.protocol === 'http:' && BACKEND_URL.startsWith('http:')) {
-                    console.log('HTTP connection detected');
-                    this.hideSecurityWarning();
-                } else {
-                    console.warn('Mixed content detected - this may cause security warnings');
-                    this.showSecurityWarning();
-                }
+                // // Check if we're in a secure context
+                // if (location.protocol === 'https:' && BACKEND_URL.startsWith('https:')) {
+                //     console.log('Secure connection detected');
+                //     this.hideSecurityWarning();
+                // } else if (location.protocol === 'http:' && BACKEND_URL.startsWith('http:')) {
+                //     console.log('HTTP connection detected');
+                //     this.hideSecurityWarning();
+                // } else {
+                //     console.warn('Mixed content detected - this may cause security warnings');
+                //     this.showSecurityWarning();
+                // }
                 
                 const socket = new SockJS(BACKEND_URL + '/chess-websocket');
                 this.stompClient = Stomp.over(socket);
@@ -83,10 +90,15 @@ class ChessGame {
                         console.log('Connected successfully:', frame);
                         this.connected = true;
 
+                         // CRITICAL FIX: Get session ID from backend
                         if (frame.headers && frame.headers['user-name']) {
-                            this.sessionId = frame.headers['user-name'];
-                            console.log('Session ID:', this.sessionId);
+                            this.playerId = frame.headers['user-name'];
+                            console.log('Backend Session ID:', this.playerId);
                         }
+                        // if (frame.headers && frame.headers['user-name']) {
+                        //     this.sessionId = frame.headers['user-name'];
+                        //     console.log('Session ID:', this.sessionId);
+                        // }
                         this.updateGameStatus('Connected to server', 'connected');
                         resolve();
                     },
@@ -95,15 +107,15 @@ class ChessGame {
                         console.error('Connection error:', error);
                         this.connected = false;
                         
-                        // Provide more specific error messages
-                        let errorMessage = 'Failed to connect to server';
-                        if (error.includes('timeout')) {
-                            errorMessage = 'Connection timeout - server may be down';
-                        } else if (error.includes('CORS')) {
-                            errorMessage = 'CORS error - check server configuration';
-                        } else if (error.includes('Mixed Content')) {
-                            errorMessage = 'Mixed content error - use HTTPS';
-                        }
+                        // // Provide more specific error messages
+                        // let errorMessage = 'Failed to connect to server';
+                        // if (error.includes('timeout')) {
+                        //     errorMessage = 'Connection timeout - server may be down';
+                        // } else if (error.includes('CORS')) {
+                        //     errorMessage = 'CORS error - check server configuration';
+                        // } else if (error.includes('Mixed Content')) {
+                        //     errorMessage = 'Mixed content error - use HTTPS';
+                        // }
                         
                         this.updateGameStatus(errorMessage, 'disconnected');
                         reject(error);
@@ -395,31 +407,7 @@ class ChessGame {
             alert('Failed to create game: ' + error.message);
         }
 }
-    // async joinRandomGame() {
-    //     const playerName = document.getElementById('playerNameInput').value.trim();
-    //     if (!playerName) { alert('Please enter your name'); return; }
-    //     this.playerName = playerName;
-    //     try {
-    //         await this.connectToServer();
-    //         const response = await fetch(`${BACKEND_URL}/api/games/join-random`, {
-    //             method: 'POST', headers: { 'Content-Type': 'application/json' },
-    //             body: JSON.stringify({ playerId: this.playerId, playerName: this.playerName })
-    //         });
-    //         if (response.ok) {
-    //             const gameSession = await response.json();
-    //             if (gameSession) {
-    //                 this.handleGameJoined(gameSession);
-    //                 closeMultiplayerMenu();
-    //             } else {
-    //                 alert('No available games to join. Try creating a new game.');
-    //             }
-    //         } else { throw new Error('Failed to join random game'); }
-    //     } catch (error) {
-    //         console.error('Error joining random game:', error);
-    //         alert('Failed to join game. Make sure the server is running on localhost:8080');
-    //     }
-    // }
-
+   
 //     // Replace your existing joinRandomGame function in ChessGame class
 async joinRandomGame() {
     const nameInput = document.getElementById('playerNameInput');
@@ -453,9 +441,11 @@ async joinRandomGame() {
             type: 'RANDOM_MATCH'
         };
         
+         console.log('Sending match request:', matchRequest);
         this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
         
         // Show waiting UI
+        this.waitingForMatch=true;
         this.showWaitingStatus('Searching for an opponent...');
         this.updateGameStatus('Searching for opponent...', 'searching');
         
@@ -469,581 +459,233 @@ async joinRandomGame() {
 }
 
 // Add this method to handle match-related messages
-handleMatchMessage(message) {
-    console.log('Handling match message:', message);
-    
-    switch(message.type) {
-        case 'WAITING_FOR_OPPONENT':
-            this.handleWaitingForOpponent(message);
-            break;
-            
-        case 'MATCH_FOUND':
-            this.handleMatchFound(message);
-            break;
-            
-        case 'MATCH_TIMEOUT':
-            this.handleMatchTimeout(message);
-            break;
-            
-        case 'MATCH_CANCELLED':
-            this.handleMatchCancelled(message);
-            break;
-            
-        case 'MATCH_ERROR':
-            this.handleMatchError(message);
-            break;
-            
-        default:
-            console.log('Unknown match message type:', message.type);
-    }
-}
 
-handleWaitingForOpponent(message) {
-    this.updateGameStatus('Waiting for opponent...', 'waiting');
-    const waitingMsg = message.queueSize ? 
-        `Searching for opponent... (${message.queueSize} players in queue)` : 
-        'Searching for opponent...';
-    this.updateWaitingMessage(waitingMsg);
-}
+    // FIXED: Handle match-related messages
+    handleMatchMessage(message) {
+        console.log('=== MATCH MESSAGE RECEIVED ===');
+        console.log('Type:', message.type);
+        console.log('Message:', message);
+        console.log('===============================');
+        
+        switch(message.type) {
+            case 'WAITING_FOR_OPPONENT':
+                this.handleWaitingForOpponent(message);
+                break;
+                
+            case 'MATCH_FOUND':
+                this.handleMatchFound(message);
+                break;
+                
+            case 'MATCH_TIMEOUT':
+                this.handleMatchTimeout(message);
+                break;
+                
+            case 'MATCH_CANCELLED':
+                this.handleMatchCancelled(message);
+                break;
+                
+            case 'MATCH_ERROR':
+                this.handleMatchError(message);
+                break;
+                
+            default:
+                console.log('Unknown match message type:', message.type);
+        }
+    }
+
+    handleWaitingForOpponent(message) {
+        console.log('Waiting for opponent, queue size:', message.queueSize);
+        this.updateGameStatus('Waiting for opponent...', 'waiting');
+        const waitingMsg = message.queueSize ? 
+            `Searching for opponent... (${message.queueSize} players in queue)` : 
+            'Searching for opponent...';
+        this.updateWaitingMessage(waitingMsg);
+    }
 
 handleMatchFound(message) {
-    console.log('Match found:', message);
-    
-    // Set up game state
-    this.gameId = message.gameId;
-    this.playerColor = message.playerColor;
-    this.isMultiplayer = true;
-
-    
-    // IMPORTANT: Set gameStarted to true for multiplayer matches
-    this.gameStarted = true;
-    this.bothPlayersReady = true;
-    
-    
-    // Subscribe to game-specific channels
-    this.subscribeToGame(this.gameId);
-    
-    // Hide waiting UI and close menu
-    this.hideWaitingStatus();
-    closeMultiplayerMenu();
-    
-    // Update game info
-    this.updateGameStatus('Match found! Game starting...', 'matched');
-    this.updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
-    
-    // Update game state if provided
-    if (message.gameState) {
-        this.updateFromGameState(message.gameState);
-    }
-
-    // Start timer if enabled
-    if (this.timerEnabled) {
-        this.startTimer();
-    }
-
-    // Update displays and controls
-    this.updateControlStates();
-    this.updateStatus();
-    
-    
-    console.log('Match setup complete - Game ID:', this.gameId, 'Color:', this.playerColor);
-}
-
-handleMatchTimeout(message) {
-    this.hideWaitingStatus();
-    this.updateGameStatus('Match search timed out', 'timeout');
-    alert(message.message || 'No opponent found within the time limit. Please try again.');
-}
-
-handleMatchCancelled(message) {
-    this.hideWaitingStatus();
-    this.updateGameStatus('Match search cancelled', 'cancelled');
-    if (message.message && message.message !== 'Match search cancelled by user') {
-        alert(message.message);
-    }
-}
-
-handleMatchError(message) {
-    this.hideWaitingStatus();
-    this.updateGameStatus('Match error occurred', 'error');
-    alert('Matchmaking error: ' + (message.message || 'Unknown error'));
-}
-
-// Add method to cancel random match search
-cancelRandomMatch() {
-    if (this.stompClient && this.connected) {
-        const cancelRequest = {
-            playerName: this.playerName
-        };
+        console.log('=== MATCH FOUND ===');
+        console.log('Game ID:', message.gameId);
+        console.log('My Color:', message.playerColor);
+        console.log('Opponent:', message.opponentName);
+        console.log('==================');
         
-        this.stompClient.send('/app/cancelRandomMatch', {}, JSON.stringify(cancelRequest));
+        // Set up game state
+        this.gameId = message.gameId;
+        this.playerColor = message.playerColor;
+        this.isMultiplayer = true;
+        this.gameStarted = true;
+        this.bothPlayersReady = true;
+        this.waitingForMatch = false;
+        
+        // Subscribe to game-specific channels
+        this.subscribeToGame(this.gameId);
+        
+        // Hide waiting UI and close menu
+        this.hideWaitingStatus();
+        closeMultiplayerMenu();
+        
+        // Update game info
+        this.updateGameStatus('Match found! Game starting...', 'matched');
+        this.updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
+        
+        // Update game state if provided
+        if (message.gameState) {
+            this.updateFromGameState(message.gameState);
+        }
+
+        // Start timer if enabled
+        if (this.timerEnabled) {
+            this.startTimer();
+        }
+
+        this.updateControlStates();
+        this.updateStatus();
+        
+        console.log('Match setup complete - Game ID:', this.gameId, 'Color:', this.playerColor);
+    }
+handleMatchTimeout(message) {
+        console.log('Match search timed out');
+        this.waitingForMatch = false;
+        this.hideWaitingStatus();
+        this.updateGameStatus('Match search timed out', 'timeout');
+        alert(message.message || 'No opponent found within the time limit. Please try again.');
+    }
+
+    handleMatchCancelled(message) {
+        console.log('Match search cancelled:', message.message);
+        this.waitingForMatch = false;
         this.hideWaitingStatus();
         this.updateGameStatus('Match search cancelled', 'cancelled');
-    }
-}
-
-// UI helper methods
-showWaitingStatus(message) {
-    const modal = document.getElementById('multiplayerModal');
-    const dialog = modal.querySelector('.multiplayer-dialog');
-    
-    let waitingDiv = document.getElementById('waitingStatus');
-    if (!waitingDiv) {
-        waitingDiv = document.createElement('div');
-        waitingDiv.id = 'waitingStatus';
-        waitingDiv.className = 'waiting-status';
-        waitingDiv.innerHTML = `
-            <div class="waiting-content">
-                <div class="waiting-spinner">⏳</div>
-                <div class="waiting-message"></div>
-                <div class="waiting-timer">Time elapsed: 0:00</div>
-                <button class="btn btn-cancel" onclick="game.cancelRandomMatch()">Cancel Search</button>
-            </div>
-        `;
-        dialog.appendChild(waitingDiv);
-    }
-
-    
-    this.updateWaitingMessage(message);
-    
-    // Hide other options while waiting
-    const options = dialog.querySelector('.multiplayer-options');
-    if (options) options.style.display = 'none';
-    waitingDiv.style.display = 'block';
-    
-    // Start timer
-    this.startWaitingTimer();
-}
-
-hideWaitingStatus() {
-    const waitingDiv = document.getElementById('waitingStatus');
-    if (waitingDiv) {
-        waitingDiv.style.display = 'none';
-    }
-    
-    const options = document.querySelector('.multiplayer-options');
-    if (options) {
-        options.style.display = 'block';
-    }
-    
-    this.stopWaitingTimer();
-}
-
-updateWaitingMessage(message) {
-    const waitingMessage = document.querySelector('.waiting-message');
-    if (waitingMessage) {
-        waitingMessage.textContent = message;
-    }
-}
-
-startWaitingTimer() {
-    this.waitingStartTime = Date.now();
-    this.waitingTimerInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - this.waitingStartTime) / 1000);
-        const minutes = Math.floor(elapsed / 60);
-        const seconds = elapsed % 60;
-        const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        
-        const timerElement = document.querySelector('.waiting-timer');
-        if (timerElement) {
-            timerElement.textContent = `Time elapsed: ${timeString}`;
+        if (message.message && message.message !== 'Match search cancelled by user') {
+            alert(message.message);
         }
-    }, 1000);
-}
-
-stopWaitingTimer() {
-    if (this.waitingTimerInterval) {
-        clearInterval(this.waitingTimerInterval);
-        this.waitingTimerInterval = null;
-        this.waitingStartTime = null;
     }
-}
 
-// Enhanced frontend matchmaking functions - Add these to your existing ChessGame class
+    handleMatchError(message) {
+        console.log('Match error:', message.message);
+        this.waitingForMatch = false;
+        this.hideWaitingStatus();
+        this.updateGameStatus('Match error occurred', 'error');
+        alert('Matchmaking error: ' + (message.message || 'Unknown error'));
+    }
 
-// Enhanced joinRandomGame with better error handling
-// async joinRandomGame() {
-//     const nameInput = document.getElementById('playerNameInput');
-//     const playerName = nameInput.value.trim();
-    
-//     if (!playerName) {
-//         alert('Please enter your name first');
-//         return;
-//     }
-    
-//     if (this.waitingForMatch) {
-//         console.log('Already waiting for match, ignoring request');
-//         return;
-//     }
-    
-//     this.playerName = playerName;
-//     this.waitingForMatch = true;
-    
-//     try {
-//         console.log('=== STARTING RANDOM MATCH SEARCH ===');
-//         console.log('Player name:', this.playerName);
-        
-//         // Connect to WebSocket first
-//         await this.connectToServer();
-        
-//         if (!this.connected) {
-//             throw new Error('Failed to connect to server');
-//         }
-        
-//         // Subscribe to match queue messages
-//         this.stompClient.subscribe('/user/queue/match', (message) => {
-//             console.log('Match message received:', message.body);
-//             try {
-//                 const matchMessage = JSON.parse(message.body);
-//                 this.handleMatchMessage(matchMessage);
-//             } catch (error) {
-//                 console.error('Error parsing match message:', error, message.body);
-//                 this.handleMatchError({ message: 'Invalid match message received' });
-//             }
-//         });
-        
-//         // Send matchmaking request via WebSocket
-//         const matchRequest = {
-//             playerName: this.playerName,
-//             type: 'RANDOM_MATCH'
-//         };
-        
-//         console.log('Sending match request:', matchRequest);
-//         this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
-        
-//         // Show waiting UI
-//         this.showWaitingStatus('Searching for an opponent...');
-//         this.updateGameStatus('Searching for opponent...', 'searching');
-        
-//         // Set client-side timeout as backup (2.5 minutes to account for network delays)
-//         this.clientTimeoutId = setTimeout(() => {
-//             if (this.waitingForMatch) {
-//                 console.log('CLIENT-SIDE TIMEOUT: No match found');
-//                 this.handleMatchTimeout({ 
-//                     message: 'Search timed out. No opponent found within time limit.' 
-//                 });
-//             }
-//         }, 150000); // 2.5 minutes client-side timeout
-        
-//         console.log('Random match request sent successfully');
-        
-//     } catch (error) {
-//         console.error('Error in random matchmaking:', error);
-//         this.waitingForMatch = false;
-//         this.hideWaitingStatus();
-//         alert('Failed to start matchmaking: ' + error.message);
-//     }
-// }
-
-// // Enhanced match message handler
-// handleMatchMessage(message) {
-//     console.log('=== HANDLING MATCH MESSAGE ===');
-//     console.log('Type:', message.type);
-//     console.log('Full message:', message);
-    
-//     switch(message.type) {
-//         case 'WAITING_FOR_OPPONENT':
-//             this.handleWaitingForOpponent(message);
-//             break;
+    // FIXED: Cancel random match search
+    cancelRandomMatch() {
+        if (this.stompClient && this.connected && this.waitingForMatch) {
+            const cancelRequest = {
+                playerName: this.playerName
+            };
             
-//         case 'MATCH_FOUND':
-//             this.handleMatchFound(message);
-//             break;
+            console.log('Sending cancel request');
+            this.stompClient.send('/app/cancelRandomMatch', {}, JSON.stringify(cancelRequest));
+            this.waitingForMatch = false;
+            this.hideWaitingStatus();
+            this.updateGameStatus('Match search cancelled', 'cancelled');
+        }
+    }
+
+    // FIXED: UI helper methods with proper timer display
+    showWaitingStatus(message) {
+        const modal = document.getElementById('multiplayerModal');
+        const dialog = modal.querySelector('.multiplayer-dialog');
+        
+        let waitingDiv = document.getElementById('waitingStatus');
+        if (!waitingDiv) {
+            waitingDiv = document.createElement('div');
+            waitingDiv.id = 'waitingStatus';
+            waitingDiv.className = 'waiting-status';
+            waitingDiv.innerHTML = `
+                <div class="waiting-content">
+                    <div class="waiting-spinner">⏳</div>
+                    <div class="waiting-message"></div>
+                    <div class="waiting-timer">Time elapsed: 0:00</div>
+                    <div class="waiting-timeout">Timeout in: 2:00</div>
+                    <button class="btn btn-cancel" onclick="game.cancelRandomMatch()">Cancel Search</button>
+                </div>
+            `;
+            dialog.appendChild(waitingDiv);
+        }
+        
+        this.updateWaitingMessage(message);
+        
+        // Hide other options while waiting
+        const options = dialog.querySelector('.multiplayer-options');
+        if (options) options.style.display = 'none';
+        waitingDiv.style.display = 'block';
+        
+        // Start timer with proper timeout countdown
+        this.startWaitingTimer();
+    }
+
+    hideWaitingStatus() {
+        const waitingDiv = document.getElementById('waitingStatus');
+        if (waitingDiv) {
+            waitingDiv.style.display = 'none';
+        }
+        
+        const options = document.querySelector('.multiplayer-options');
+        if (options) {
+            options.style.display = 'block';
+        }
+        
+        this.stopWaitingTimer();
+    }
+
+    updateWaitingMessage(message) {
+        const waitingMessage = document.querySelector('.waiting-message');
+        if (waitingMessage) {
+            waitingMessage.textContent = message;
+        }
+    }
+
+    // FIXED: Proper waiting timer with timeout countdown
+    startWaitingTimer() {
+        this.waitingStartTime = Date.now();
+        const timeoutDuration = 120000; // 2 minutes in milliseconds
+        
+        this.waitingTimerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - this.waitingStartTime) / 1000);
+            const remaining = Math.max(0, 120 - elapsed); // 120 seconds total
             
-//         case 'MATCH_TIMEOUT':
-//             this.handleMatchTimeout(message);
-//             break;
+            const elapsedMinutes = Math.floor(elapsed / 60);
+            const elapsedSeconds = elapsed % 60;
+            const elapsedString = `${elapsedMinutes}:${elapsedSeconds.toString().padStart(2, '0')}`;
             
-//         case 'MATCH_CANCELLED':
-//             this.handleMatchCancelled(message);
-//             break;
+            const remainingMinutes = Math.floor(remaining / 60);
+            const remainingSecondsNum = remaining % 60;
+            const remainingString = `${remainingMinutes}:${remainingSecondsNum.toString().padStart(2, '0')}`;
             
-//         case 'MATCH_ERROR':
-//             this.handleMatchError(message);
-//             break;
+            const elapsedElement = document.querySelector('.waiting-timer');
+            const timeoutElement = document.querySelector('.waiting-timeout');
             
-//         default:
-//             console.log('Unknown match message type:', message.type);
-//     }
-// }
-
-// handleWaitingForOpponent(message) {
-//     console.log('Still waiting for opponent...');
-//     this.updateGameStatus('Waiting for opponent...', 'waiting');
-//     const waitingMsg = message.queueSize ? 
-//         `Searching for opponent... (${message.queueSize} players in queue)` : 
-//         'Searching for opponent...';
-//     this.updateWaitingMessage(waitingMsg);
-// }
-
-// handleMatchFound(message) {
-//     console.log('=== MATCH FOUND ===');
-//     console.log('Match details:', message);
-    
-//     // Clear client timeout
-//     if (this.clientTimeoutId) {
-//         clearTimeout(this.clientTimeoutId);
-//         this.clientTimeoutId = null;
-//     }
-    
-//     this.waitingForMatch = false;
-    
-//     // Set up game state
-//     this.gameId = message.gameId;
-//     this.playerColor = message.playerColor;
-//     this.isMultiplayer = true;
-//     this.gameStarted = true;
-//     this.bothPlayersReady = true;
-    
-//     // Subscribe to game-specific channels
-//     this.subscribeToGame(this.gameId);
-    
-//     // Hide waiting UI and close menu
-//     this.hideWaitingStatus();
-//     closeMultiplayerMenu();
-    
-//     // Update game info
-//     this.updateGameStatus('Match found! Game starting...', 'matched');
-//     this.updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
-    
-//     // Update game state if provided
-//     if (message.gameState) {
-//         this.updateFromGameState(message.gameState);
-//     }
-
-//     // Start timer if enabled
-//     if (this.timerEnabled) {
-//         this.startTimer();
-//     }
-
-//     // Update displays and controls
-//     this.updateControlStates();
-//     this.updateStatus();
-    
-//     console.log('Match setup complete - Game ID:', this.gameId, 'Color:', this.playerColor);
-// }
-
-// handleMatchTimeout(message) {
-//     console.log('=== MATCH TIMEOUT ===');
-//     console.log('Timeout message:', message);
-    
-//     // Clear client timeout
-//     if (this.clientTimeoutId) {
-//         clearTimeout(this.clientTimeoutId);
-//         this.clientTimeoutId = null;
-//     }
-    
-//     this.waitingForMatch = false;
-//     this.hideWaitingStatus();
-//     this.updateGameStatus('Match search timed out', 'timeout');
-    
-//     const timeoutMessage = message.message || 'No opponent found within the time limit. Please try again.';
-//     alert(timeoutMessage);
-    
-//     // Re-enable UI
-//     const multiBtn = document.getElementById('btnMultiplayer');
-//     if (multiBtn) multiBtn.disabled = false;
-// }
-
-// handleMatchCancelled(message) {
-//     console.log('=== MATCH CANCELLED ===');
-//     console.log('Cancel message:', message);
-    
-//     // Clear client timeout
-//     if (this.clientTimeoutId) {
-//         clearTimeout(this.clientTimeoutId);
-//         this.clientTimeoutId = null;
-//     }
-    
-//     this.waitingForMatch = false;
-//     this.hideWaitingStatus();
-//     this.updateGameStatus('Match search cancelled', 'cancelled');
-    
-//     if (message.message && message.message !== 'Match search cancelled by user') {
-//         alert(message.message);
-//     }
-// }
-
-// handleMatchError(message) {
-//     console.log('=== MATCH ERROR ===');
-//     console.log('Error message:', message);
-    
-//     // Clear client timeout
-//     if (this.clientTimeoutId) {
-//         clearTimeout(this.clientTimeoutId);
-//         this.clientTimeoutId = null;
-//     }
-    
-//     this.waitingForMatch = false;
-//     this.hideWaitingStatus();
-//     this.updateGameStatus('Match error occurred', 'error');
-//     alert('Matchmaking error: ' + (message.message || 'Unknown error occurred'));
-// }
-
-// // Enhanced cancel method
-// cancelRandomMatch() {
-//     console.log('=== CANCELLING RANDOM MATCH ===');
-    
-//     if (!this.waitingForMatch) {
-//         console.log('Not waiting for match, nothing to cancel');
-//         return;
-//     }
-    
-//     // Clear client timeout
-//     if (this.clientTimeoutId) {
-//         clearTimeout(this.clientTimeoutId);
-//         this.clientTimeoutId = null;
-//     }
-    
-//     if (this.stompClient && this.connected) {
-//         const cancelRequest = {
-//             playerName: this.playerName
-//         };
-        
-//         try {
-//             this.stompClient.send('/app/cancelRandomMatch', {}, JSON.stringify(cancelRequest));
-//             console.log('Cancel request sent to server');
-//         } catch (error) {
-//             console.error('Error sending cancel request:', error);
-//         }
-//     }
-    
-//     this.waitingForMatch = false;
-//     this.hideWaitingStatus();
-//     this.updateGameStatus('Match search cancelled', 'cancelled');
-// }
-
-// // Enhanced waiting status UI
-// showWaitingStatus(message) {
-//     const modal = document.getElementById('multiplayerModal');
-//     const dialog = modal.querySelector('.multiplayer-dialog');
-    
-//     let waitingDiv = document.getElementById('waitingStatus');
-//     if (!waitingDiv) {
-//         waitingDiv = document.createElement('div');
-//         waitingDiv.id = 'waitingStatus';
-//         waitingDiv.className = 'waiting-status';
-//         waitingDiv.innerHTML = `
-//             <div class="waiting-content">
-//                 <div class="waiting-spinner">⏳</div>
-//                 <div class="waiting-message"></div>
-//                 <div class="waiting-timer">Time elapsed: 0:00</div>
-//                 <div class="waiting-timeout">Timeout in: 2:00</div>
-//                 <button class="btn btn-cancel" onclick="game.cancelRandomMatch()">Cancel Search</button>
-//             </div>
-//         `;
-//         dialog.appendChild(waitingDiv);
-//     }
-    
-//     this.updateWaitingMessage(message);
-    
-//     // Hide other options while waiting
-//     const options = dialog.querySelector('.multiplayer-options');
-//     if (options) options.style.display = 'none';
-//     waitingDiv.style.display = 'block';
-    
-//     // Start timer
-//     this.startWaitingTimer();
-// }
-
-// // Enhanced waiting timer with countdown
-// startWaitingTimer() {
-//     this.waitingStartTime = Date.now();
-//     const TIMEOUT_SECONDS = 120; // 2 minutes
-    
-//     this.waitingTimerInterval = setInterval(() => {
-//         const elapsed = Math.floor((Date.now() - this.waitingStartTime) / 1000);
-//         const remaining = Math.max(0, TIMEOUT_SECONDS - elapsed);
-        
-//         const elapsedMinutes = Math.floor(elapsed / 60);
-//         const elapsedSeconds = elapsed % 60;
-//         const elapsedString = `${elapsedMinutes}:${elapsedSeconds.toString().padStart(2, '0')}`;
-        
-//         const remainingMinutes = Math.floor(remaining / 60);
-//         const remainingSecondsOnly = remaining % 60;
-//         const remainingString = `${remainingMinutes}:${remainingSecondsOnly.toString().padStart(2, '0')}`;
-        
-//         const timerElement = document.querySelector('.waiting-timer');
-//         const timeoutElement = document.querySelector('.waiting-timeout');
-        
-//         if (timerElement) {
-//             timerElement.textContent = `Time elapsed: ${elapsedString}`;
-//         }
-        
-//         if (timeoutElement) {
-//             timeoutElement.textContent = `Timeout in: ${remainingString}`;
+            if (elapsedElement) {
+                elapsedElement.textContent = `Time elapsed: ${elapsedString}`;
+            }
+            if (timeoutElement) {
+                timeoutElement.textContent = `Timeout in: ${remainingString}`;
+                if (remaining <= 30) {
+                    timeoutElement.style.color = 'red';
+                } else if (remaining <= 60) {
+                    timeoutElement.style.color = 'orange';
+                }
+            }
             
-//             // Change color when close to timeout
-//             if (remaining <= 30) {
-//                 timeoutElement.style.color = 'red';
-//                 timeoutElement.style.fontWeight = 'bold';
-//             } else if (remaining <= 60) {
-//                 timeoutElement.style.color = 'orange';
-//             }
-//         }
-        
-//         // Client-side timeout check (backup)
-//         if (remaining <= 0 && this.waitingForMatch) {
-//             console.log('Client-side timeout reached');
-//             this.handleMatchTimeout({ 
-//                 message: 'Search timed out on client side. Please try again.' 
-//             });
-//         }
-//     }, 1000);
-// }
+            // Auto-cancel if we've exceeded timeout (safety check)
+            if (remaining <= 0 && this.waitingForMatch) {
+                console.log('Frontend timeout reached, cancelling search');
+                this.cancelRandomMatch();
+            }
+            
+        }, 1000);
+    }
 
-// stopWaitingTimer() {
-//     if (this.waitingTimerInterval) {
-//         clearInterval(this.waitingTimerInterval);
-//         this.waitingTimerInterval = null;
-//         this.waitingStartTime = null;
-//     }
-// }
-
-// // Add this to your constructor
-// constructor() {
-//     // ... existing constructor code ...
-    
-//     // Add these new properties
-//     this.waitingForMatch = false;
-//     this.clientTimeoutId = null;
-//     this.waitingTimerInterval = null;
-//     this.waitingStartTime = null;
-    
-//     // ... rest of existing constructor ...
-// }
-
-// // Add cleanup to your disconnectFromServer method
-// disconnectFromServer() {
-//     // Cancel any pending timeouts
-//     if (this.clientTimeoutId) {
-//         clearTimeout(this.clientTimeoutId);
-//         this.clientTimeoutId = null;
-//     }
-    
-//     // Stop waiting timer
-//     this.stopWaitingTimer();
-    
-//     // Reset waiting state
-//     this.waitingForMatch = false;
-    
-//     // ... existing disconnect code ...
-//     if (this.stompClient && this.connected) {
-//         if (this.gameId) {
-//             const disconnectMessage = {
-//                 type: 'disconnect',
-//                 playerId: this.playerId,
-//                 playerName: this.playerName
-//             };
-//             this.stompClient.send(`/app/game/${this.gameId}/disconnect`, {}, JSON.stringify(disconnectMessage));
-//         }
-//         this.stompClient.disconnect();
-//         this.connected = false;
-//         this.updateGameStatus('Disconnected from server', 'disconnected');
-//     }
-// }
-
-
+    stopWaitingTimer() {
+        if (this.waitingTimerInterval) {
+            clearInterval(this.waitingTimerInterval);
+            this.waitingTimerInterval = null;
+            this.waitingStartTime = null;
+        }
+    }
 
     async joinSpecificGame() {
         const playerName = document.getElementById('playerNameInput').value.trim();
