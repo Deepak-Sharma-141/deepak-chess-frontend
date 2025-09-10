@@ -93,7 +93,7 @@ class ChessGame {
                 };
 
                 
-                this.stompClient.connectHeaders({}, 
+                this.stompClient.connect({}, 
                     (frame) => {
                         clearTimeout(connectionTimeout);
                         console.log('Connected successfully:', frame);
