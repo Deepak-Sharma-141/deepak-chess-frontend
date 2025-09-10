@@ -65,7 +65,7 @@ class ChessGame {
                 //     this.showSecurityWarning();
                 // }
                 
-                const socket = new SockJS(BACKENDURL + '/chess-websocket');
+                const socket = new SockJS(BACKEND_URL + '/chess-websocket');
                 this.stompClient = Stomp.over(socket);
                 
                 // Enable debug logging
@@ -377,7 +377,7 @@ class ChessGame {
         try {
             await this.connectToServer();
             
-            const response = await fetch(`${BACKEND_URL}/games/create`, {
+            const response = await fetch(`${BACKEND_URL}/api/games/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 // body: JSON.stringify({ 
