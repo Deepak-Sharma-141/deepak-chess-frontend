@@ -93,7 +93,7 @@ class ChessGame {
                 };
 
                 
-                this.stompClient.connect({}, 
+                this.stompClient.connectHeaders({}, 
                     (frame) => {
                         clearTimeout(connectionTimeout);
                         console.log('Connected successfully:', frame);
@@ -115,10 +115,21 @@ class ChessGame {
                     } else if (frame.headers && frame.headers['session']) {
                         this.sessionId = frame.headers['session'];
                         console.log('Backend Session ID from session:', this.sessionId);
-                    } else {
-                        // Fallback: use the WebSocket session
-                        this.sessionId = this.stompClient.ws._transport.url.split('/')[5]; // Extract from URL
-                        console.log('Fallback Session ID from URL:', this.sessionId);
+                    // } else {
+                    //     // Fallback: use the WebSocket session
+                    //     this.sessionId = this.stompClient.ws._transport.url.split('/')[5]; // Extract from URL
+                    //     console.log('Fallback Session ID from URL:', this.sessionId);
+                    // }
+                        }else {
+                        // Fallback: use the WebSocket session from URL
+                        try {
+                            this.sessionId = this.stompClient.ws._transport.url.split('/')[5];
+                            console.log('Fallback Session ID from URL:', this.sessionId);
+                        } catch (e) {
+                            // Last resort: generate session ID
+                            this.sessionId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                            console.log('Generated Session ID:', this.sessionId);
+                        }
                     }
                         this.updateGameStatus('Connected to server', 'connected');
                         resolve();
@@ -170,36 +181,86 @@ class ChessGame {
         }
     }
 
-    subscribeToGame(gameId) {
-        if (!this.stompClient || !this.connected) {
-            console.error('Cannot subscribe to game: stompClient=', !!this.stompClient, 'connected=', this.connected);
-            return;
+            subscribeToGame(gameId) {
+                if (!this.stompClient || !this.connected) {
+                    console.error('Cannot subscribe to game: stompClient=', !!this.stompClient, 'connected=', this.connected);
+                    return;
+                }
+
+                console.log('=== SUBSCRIBING TO GAME ===');
+                console.log('Game ID:', gameId);
+                console.log('Session ID:', this.sessionId);
+                console.log('Player ID:', this.playerId);
+
+            // console.log('Subscribing to game channels for gameId:', gameId);
+            try{ 
+                this.stompClient.subscribe(`/topic/game/${gameId}`, (message) => {
+                    console.log('Received game message:', message.body);
+                    try {
+                        const gameMessage = JSON.parse(message.body);
+                        this.handleGameMessage(gameMessage);
+                    } catch (error) {
+                        console.error('Error parsing game message:', error, message.body);
+                    }
+                });
+
+                const playerSubscription = this.stompClient.subscribe(`/topic/game/${gameId}/player/${this.sessionId || this.playerId}`, (message) => {
+                    console.log('Received player message:', message.body);
+                    try {
+                        const gameMessage = JSON.parse(message.body);
+                        this.handlePlayerMessage(gameMessage);
+                    } catch (error) {
+                        console.error('Error parsing player message:', error, message.body);
+                    }
+                });
+
+                console.log('Successfully subscribed to game channels');
+                console.log('Game subscription:', gameSubscription);
+                console.log('Player subscription:', playerSubscription);
+            }catch(error){
+                
+                //console.log('Successfully subscribed to game channels');
+                console.error('Error subscribing to game channels:', error);
+                alert('Failed to subscribe to game updates. Game may not work properly.');
+        
+            }
         }
-
-        console.log('Subscribing to game channels for gameId:', gameId);
-        
-        this.stompClient.subscribe(`/topic/game/${gameId}`, (message) => {
-            console.log('Received game message:', message.body);
-            try {
-                const gameMessage = JSON.parse(message.body);
-                this.handleGameMessage(gameMessage);
-            } catch (error) {
-                console.error('Error parsing game message:', error, message.body);
+        testMatchmaking() {
+            console.log('=== TESTING MATCHMAKING CONNECTION ===');
+            console.log('Current state:');
+            console.log('- connected:', this.connected);
+            console.log('- stompClient:', !!this.stompClient);
+            console.log('- sessionId:', this.sessionId);
+            console.log('- playerName:', this.playerName);
+            
+            if (!this.connected) {
+                console.log('Not connected. Run: await game.connectToServer()');
+                return;
             }
-        });
-
-        this.stompClient.subscribe(`/topic/game/${gameId}/player/${this.sessionId || this.playerId}`, (message) => {
-            console.log('Received player message:', message.body);
-            try {
-                const gameMessage = JSON.parse(message.body);
-                this.handlePlayerMessage(gameMessage);
-            } catch (error) {
-                console.error('Error parsing player message:', error, message.body);
-            }
-        });
-        
-        console.log('Successfully subscribed to game channels');
-    }
+            
+            // Test subscription
+            this.stompClient.subscribe('/user/queue/match', (message) => {
+                console.log('=== TEST MATCH MESSAGE ===');
+                console.log('Body:', message.body);
+                try {
+                    const parsed = JSON.parse(message.body);
+                    console.log('Parsed:', parsed);
+                    alert('Test message received: ' + parsed.type);
+                } catch (e) {
+                    console.error('Parse error:', e);
+                }
+            });
+            
+            // Send test request
+            const testRequest = {
+                playerName: 'TestPlayer_' + Date.now(),
+                type: 'RANDOM_MATCH'
+            };
+            
+            console.log('Sending test request:', testRequest);
+            this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(testRequest));
+            console.log('Test request sent!');
+        }
 
     handleGameMessage(message) {
         console.log('Game message received:', message);
@@ -585,10 +646,11 @@ try {
     }
 
 handleMatchFound(message) {
-        console.log('=== MATCH FOUND ===');
+      try{  console.log('=== MATCH FOUND ===');
         console.log('Game ID:', message.gameId);
         console.log('My Color:', message.playerColor);
         console.log('Opponent:', message.opponentName);
+        console.log('Game State:', message.gameState);
         console.log('==================');
         
         // Set up game state
@@ -599,10 +661,19 @@ handleMatchFound(message) {
         this.bothPlayersReady = true;
         this.waitingForMatch = false;
         
+       console.log('Updated game properties:');
+        console.log('- gameId:', this.gameId);
+        console.log('- playerColor:', this.playerColor);
+        console.log('- isMultiplayer:', this.isMultiplayer);
+        console.log('- gameStarted:', this.gameStarted);
+        console.log('- bothPlayersReady:', this.bothPlayersReady);
+        
         // Subscribe to game-specific channels
+        console.log('Subscribing to game channels...');
         this.subscribeToGame(this.gameId);
         
         // Hide waiting UI and close menu
+        console.log('Hiding waiting UI...');
         this.hideWaitingStatus();
         closeMultiplayerMenu();
         
@@ -612,18 +683,35 @@ handleMatchFound(message) {
         
         // Update game state if provided
         if (message.gameState) {
+              console.log('Updating from game state...');
             this.updateFromGameState(message.gameState);
         }
 
         // Start timer if enabled
         if (this.timerEnabled) {
+            console.log('Starting timer...');
             this.startTimer();
         }
 
+       // CRITICAL FIX: Update all UI components
+        console.log('Updating UI components...');
         this.updateControlStates();
         this.updateStatus();
+        this.updateDisplay(); // This was missing!
         
-        console.log('Match setup complete - Game ID:', this.gameId, 'Color:', this.playerColor);
+        console.log('=== MATCH FOUND COMPLETE ===');
+        
+        // Show success alert
+        setTimeout(() => {
+            alert(`Match found! You are playing as ${message.playerColor} against ${message.opponentName}`);
+        }, 100);
+        
+    } catch (error) {
+        console.error('Error in handleMatchFound:', error);
+        alert('Error setting up game: ' + error.message);
+        this.hideWaitingStatus();
+        this.waitingForMatch = false;
+    }
     }
 handleMatchTimeout(message) {
         console.log('Match search timed out');
@@ -881,6 +969,63 @@ updateBoardFromServer(serverBoardState) {
     }
 }
 
+
+                updateFromGameState(gameState) {
+                console.log('=== UPDATING FROM GAME STATE ===');
+                console.log('Received gameState:', gameState);
+
+                if (!gameState) { console.log('No game state provided');
+                return;
+                }
+                // Update game state from server
+                this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
+                this.currentPlayer = gameState.currentTurn;
+                this.currentPlayer = gameState.currentTurn || 'white';
+                this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
+                this.gameOver = gameState.gameStatus === 'finished';
+
+                console.log('Updated values:');
+                console.log('bothPlayersReady:', this.bothPlayersReady);
+                console.log('currentPlayer:', this.currentPlayer);
+                console.log('gameStarted:', this.gameStarted);
+                console.log('gameOver:', this.gameOver);
+                console.log('================================');
+                    
+                // Update board state if provided
+                if (gameState.boardState) {
+                    console.log('Updating board from server...');
+                    this.updateBoardFromServer(gameState.boardState);
+                } else {
+                    console.log('No board state in game state, using default board');
+                    // Initialize default chess board if no board state
+                    this.board = this.initializeBoard();
+                }
+                
+                // Update captured pieces if provided
+                if (gameState.capturedPieces) {
+                    this.capturedPieces = gameState.capturedPieces;
+                }
+                
+                // Update move history if provided
+                if (gameState.moveHistory) {
+                    this.moveHistory = gameState.moveHistory;
+                }
+                
+                // Start timer if game is active and timer is enabled
+                if (this.timerEnabled && this.gameStarted && !this.timerInterval) {
+                    this.startTimer();
+                } else if (!this.timerEnabled && this.timerInterval) {
+                    // Stop timer if it's running but shouldn't be
+                    this.stopTimer();
+                }
+
+                console.log('=== GAME STATE UPDATE COMPLETE ===');
+                
+                this.updateStatus();
+                this.updateControlStates();
+                this.updateDisplay();
+            }
+
 updateKingsFromBoard() {
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
@@ -892,68 +1037,22 @@ updateKingsFromBoard() {
     }
 }
 
-    // Modify your updateFromGameState method
-    updateFromGameState(gameState) {
-            if (!gameState) return;
+    // // Modify your updateFromGameState method
+    // updateFromGameState(gameState) {
+    //         if (!gameState) return;
             
-            // Sync board state from server
-            if (gameState.boardState) {
-                this.updateBoardFromServer(gameState.boardState);
-            }
+    //         // Sync board state from server
+    //         if (gameState.boardState) {
+    //             this.updateBoardFromServer(gameState.boardState);
+    //         }
             
-            // Rest of your existing code...
-            this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
-            this.currentPlayer = gameState.currentTurn;
-            // ... etc
-        }
+    //         // Rest of your existing code...
+    //         this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
+    //         this.currentPlayer = gameState.currentTurn;
+    //         // ... etc
+    //     }
 
-    updateFromGameState(gameState) {
-    console.log('=== UPDATING FROM GAME STATE ===');
-    console.log('Received gameState:', gameState);
-
-    if (!gameState) return;
-    
-    // Update game state from server
-    this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
-    this.currentPlayer = gameState.currentTurn;
-    this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
-    this.gameOver = gameState.gameStatus === 'finished';
-
-    console.log('Updated values:');
-    console.log('bothPlayersReady:', this.bothPlayersReady);
-    console.log('currentPlayer:', this.currentPlayer);
-    console.log('gameStarted:', this.gameStarted);
-    console.log('gameOver:', this.gameOver);
-    console.log('================================');
-        
-    // Update board state if provided
-    if (gameState.boardState) {
-        this.updateBoardFromServer(gameState.boardState);
-    }
-    
-    // Update captured pieces if provided
-    if (gameState.capturedPieces) {
-        this.capturedPieces = gameState.capturedPieces;
-    }
-    
-    // Update move history if provided
-    if (gameState.moveHistory) {
-        this.moveHistory = gameState.moveHistory;
-    }
-    
-    // Start timer if game is active and timer is enabled
-    if (this.timerEnabled && this.gameStarted && !this.timerInterval) {
-        this.startTimer();
-    } else if (!this.timerEnabled && this.timerInterval) {
-        // Stop timer if it's running but shouldn't be
-        this.stopTimer();
-    }
-    
-    this.updateStatus();
-    this.updateControlStates();
-    this.updateDisplay();
-}
-   sendMove(fromRow, fromCol, toRow, toCol) {
+            sendMove(fromRow, fromCol, toRow, toCol) {
     console.log('sendMove called with:', { fromRow, fromCol, toRow, toCol });
     
     if (!this.isMultiplayer || !this.stompClient || !this.connected) {
