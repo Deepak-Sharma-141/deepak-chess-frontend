@@ -167,7 +167,7 @@ class ChessGame {
             }
         });
 
-        this.stompClient.subscribe(`/topic/game/${gameId}/player/${this.playerId}`, (message) => {
+        this.stompClient.subscribe(`/topic/game/${gameId}/player/${this.sessionId || this.playerId}`, (message) => {
             console.log('Received player message:', message.body);
             try {
                 const gameMessage = JSON.parse(message.body);
