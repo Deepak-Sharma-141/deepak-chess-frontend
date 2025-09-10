@@ -25,7 +25,7 @@ class ChessGame {
         // Multiplayer properties
         this.isMultiplayer = false;
         this.playerId = this.generatePlayerId();
-        this.playerId = null;
+       // this.playerId = null;
         this.playerName = '';
         this.playerColor = null;
         this.gameId = null;
@@ -65,7 +65,7 @@ class ChessGame {
                 //     this.showSecurityWarning();
                 // }
                 
-                const socket = new SockJS(BACKEND_URL + '/chess-websocket');
+                const socket = new SockJS(BACKENDURL + '/chess-websocket');
                 this.stompClient = Stomp.over(socket);
                 
                 // Enable debug logging
@@ -90,15 +90,15 @@ class ChessGame {
                         console.log('Connected successfully:', frame);
                         this.connected = true;
 
-                         // CRITICAL FIX: Get session ID from backend
-                        if (frame.headers && frame.headers['user-name']) {
-                            this.playerId = frame.headers['user-name'];
-                            console.log('Backend Session ID:', this.playerId);
-                        }
+                        //  // CRITICAL FIX: Get session ID from backend
                         // if (frame.headers && frame.headers['user-name']) {
-                        //     this.sessionId = frame.headers['user-name'];
-                        //     console.log('Session ID:', this.sessionId);
+                        //     this.playerId = frame.headers['user-name'];
+                        //     console.log('Backend Session ID:', this.playerId);
                         // }
+                        if (frame.headers && frame.headers['user-name']) {
+                            this.sessionId = frame.headers['user-name'];
+                            console.log('Session ID:', this.sessionId);
+                        }
                         this.updateGameStatus('Connected to server', 'connected');
                         resolve();
                     },
@@ -107,15 +107,15 @@ class ChessGame {
                         console.error('Connection error:', error);
                         this.connected = false;
                         
-                        // // Provide more specific error messages
-                        // let errorMessage = 'Failed to connect to server';
-                        // if (error.includes('timeout')) {
-                        //     errorMessage = 'Connection timeout - server may be down';
-                        // } else if (error.includes('CORS')) {
-                        //     errorMessage = 'CORS error - check server configuration';
-                        // } else if (error.includes('Mixed Content')) {
-                        //     errorMessage = 'Mixed content error - use HTTPS';
-                        // }
+                        // Provide more specific error messages
+                        let errorMessage = 'Failed to connect to server';
+                        if (error.includes('timeout')) {
+                            errorMessage = 'Connection timeout - server may be down';
+                        } else if (error.includes('CORS')) {
+                            errorMessage = 'CORS error - check server configuration';
+                        } else if (error.includes('Mixed Content')) {
+                            errorMessage = 'Mixed content error - use HTTPS';
+                        }
                         
                         this.updateGameStatus(errorMessage, 'disconnected');
                         reject(error);
@@ -377,11 +377,16 @@ class ChessGame {
         try {
             await this.connectToServer();
             
-            const response = await fetch(`${BACKEND_URL}/api/games/create`, {
+            const response = await fetch(`${BACKEND_URL}/games/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                // body: JSON.stringify({ 
+                //     playerId: this.playerId, 
+                //     playerName: this.playerName 
+                // })
+
                 body: JSON.stringify({ 
-                    playerId: this.playerId, 
+                    playerId: this.sessionId || this.playerId, 
                     playerName: this.playerName 
                 })
             });
