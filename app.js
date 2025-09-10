@@ -14,6 +14,8 @@ class ChessGame {
         this.lastMove = null;
         this.pendingPromotion = null;
 
+        this.sessionId = null;  // Will be set by server connection
+
         //timer properties
         this.timerEnabled = false;
         this.timePerPlayer = 10 * 60; // 10 minutes default
