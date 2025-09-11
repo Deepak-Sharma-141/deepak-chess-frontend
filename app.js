@@ -50,246 +50,165 @@ class ChessGame {
         return 'player_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
     }
 
-    // connectToServer() {
-    //     return new Promise((resolve, reject) => {
-    //         try {
-    //             console.log('Attempting to connect to:', BACKEND_URL + '/chess-websocket');
-                
-    //             const socket = new SockJS(BACKEND_URL + '/chess-websocket');
-    //             this.stompClient = Stomp.over(socket);
-                
-    //             // Enable debug logging
-    //             this.stompClient.debug = (str) => {
-    //                 console.log('STOMP Debug:', str);
-    //             };
-                
-    //             this.updateGameStatus('Connecting to server...', 'connecting');
-                
-    //             // Set connection timeout
-    //             const connectionTimeout = setTimeout(() => {
-    //                 if (!this.connected) {
-    //                     console.error('Connection timeout');
-    //                     this.updateGameStatus('Connection timeout - server may be down', 'disconnected');
-    //                     reject(new Error('Connection timeout'));
-    //                 }
-    //             }, 1000); // 10 second timeout
-                
-    //             this.stompClient.connect({}, 
-    //                 (frame) => {
-    //                     clearTimeout(connectionTimeout);
-    //                     console.log('Connected successfully:', frame);
-    //                     this.connected = true;
 
-                      
-    //                   try {
-    //                         const wsUrl = this.stompClient.ws._transport.url;
-    //                         console.log('WebSocket URL:', wsUrl);
-                            
-    //                         // Extract session ID from URL like: .../572/412abjyf/websocket
-    //                         const urlParts = wsUrl.split('/');
-    //                         this.sessionId = urlParts[urlParts.length - 2]; // Get the part before 'websocket'
-    //                         console.log('Extracted Session ID:', this.sessionId);
-                            
-    //                         // Use session ID as player ID
-    //                         this.playerId = this.sessionId;
-                            
-    //                     } catch (e) {
-    //                         console.error('Failed to extract session ID:', e);
-    //                         this.sessionId = 'fallback_' + Date.now();
-    //                         this.playerId = this.sessionId;
-    //                     }
+                // Enhanced connectToServer method with better session ID extraction
+            connectToServer() {
+                return new Promise((resolve, reject) => {
+                    try {
+                        console.log('Attempting to connect to:', BACKEND_URL + '/chess-websocket');
                         
-                       
-    //                     this.updateGameStatus('Connected to server', 'connected');
-    //                     resolve();
-    //                 },
-    //                 (error) => {
-    //                     clearTimeout(connectionTimeout);
-    //                     console.error('Connection error:', error);
-    //                     this.connected = false;
+                        const socket = new SockJS(BACKEND_URL + '/chess-websocket');
+                        this.stompClient = Stomp.over(socket);
                         
-    //                     // Provide more specific error messages
-    //                     let errorMessage = 'Failed to connect to server';
-    //                     if (error.includes && error.includes('timeout')) {
-    //                         errorMessage = 'Connection timeout - server may be down';
-    //                      }
-    //                       // } else if (error.includes('CORS')) {
-    //                     //     errorMessage = 'CORS error - check server configuration';
-    //                     // } else if (error.includes('Mixed Content')) {
-    //                     //     errorMessage = 'Mixed content error - use HTTPS';
-    //                     // }
+                        // Enable debug logging for troubleshooting
+                        this.stompClient.debug = (str) => {
+                            console.log('STOMP Debug:', str);
+                        };
                         
-    //                     this.updateGameStatus(errorMessage, 'disconnected');
-    //                     reject(error);
-    //                 }
-                    
-    //             );
-    //         } catch (error) {
-    //             console.error('Failed to create WebSocket connection:', error);
-    //             this.updateGameStatus('Failed to create connection', 'disconnected');
-    //             reject(error);
-    //         }
-    //     });
-    // }
+                        this.updateGameStatus('Connecting to server...', 'connecting');
+                        
+                        // Set connection timeout
+                        const connectionTimeout = setTimeout(() => {
+                            if (!this.connected) {
+                                console.error('Connection timeout');
+                                this.updateGameStatus('Connection timeout - server may be down', 'disconnected');
+                                reject(new Error('Connection timeout'));
+                            }
+                        }, 15000); // 15 second timeout
+                        
+                        // Connect with headers to help session identification
+                        const connectHeaders = {
+                            'playerName': this.playerName || 'Anonymous'
+                        };
+                        
+                        this.stompClient.connect(connectHeaders, 
+                            (frame) => {
+                                clearTimeout(connectionTimeout);
+                                console.log('Connected successfully:', frame);
+                                this.connected = true;
+                                
+                                // Multiple methods to extract session ID
+                                this.sessionId = this.extractSessionId(frame);
+                                this.playerId = this.sessionId;
+                                
+                                console.log('Final Session ID:', this.sessionId);
+                                console.log('Player ID:', this.playerId);
+                                
+                                this.updateGameStatus('Connected to server', 'connected');
+                                resolve();
+                            },
+                            (error) => {
+                                clearTimeout(connectionTimeout);
+                                console.error('Connection error:', error);
+                                this.connected = false;
+                                
+                                let errorMessage = 'Failed to connect to server';
+                                if (error && error.toString().includes('timeout')) {
+                                    errorMessage = 'Connection timeout - server may be down';
+                                }
+                                
+                                this.updateGameStatus(errorMessage, 'disconnected');
+                                reject(error);
+                            }
+                        );
+                    } catch (error) {
+                        console.error('Failed to create WebSocket connection:', error);
+                        this.updateGameStatus('Failed to create connection', 'disconnected');
+                        reject(error);
+                    }
+                });
+            }
 
-    // Enhanced connectToServer method with better session ID extraction
-connectToServer() {
-    return new Promise((resolve, reject) => {
-        try {
-            console.log('Attempting to connect to:', BACKEND_URL + '/chess-websocket');
-            
-            const socket = new SockJS(BACKEND_URL + '/chess-websocket');
-            this.stompClient = Stomp.over(socket);
-            
-            // Enable debug logging for troubleshooting
-            this.stompClient.debug = (str) => {
-                console.log('STOMP Debug:', str);
-            };
-            
-            this.updateGameStatus('Connecting to server...', 'connecting');
-            
-            // Set connection timeout
-            const connectionTimeout = setTimeout(() => {
-                if (!this.connected) {
-                    console.error('Connection timeout');
-                    this.updateGameStatus('Connection timeout - server may be down', 'disconnected');
-                    reject(new Error('Connection timeout'));
-                }
-            }, 15000); // 15 second timeout
-            
-            // Connect with headers to help session identification
-            const connectHeaders = {
-                'playerName': this.playerName || 'Anonymous'
-            };
-            
-            this.stompClient.connect(connectHeaders, 
-                (frame) => {
-                    clearTimeout(connectionTimeout);
-                    console.log('Connected successfully:', frame);
-                    this.connected = true;
-                    
-                    // Multiple methods to extract session ID
-                    this.sessionId = this.extractSessionId(frame);
-                    this.playerId = this.sessionId;
-                    
-                    console.log('Final Session ID:', this.sessionId);
-                    console.log('Player ID:', this.playerId);
-                    
-                    this.updateGameStatus('Connected to server', 'connected');
-                    resolve();
-                },
-                (error) => {
-                    clearTimeout(connectionTimeout);
-                    console.error('Connection error:', error);
-                    this.connected = false;
-                    
-                    let errorMessage = 'Failed to connect to server';
-                    if (error && error.toString().includes('timeout')) {
-                        errorMessage = 'Connection timeout - server may be down';
+            // Enhanced session ID extraction method
+            extractSessionId(frame) {
+                try {
+                    // Method 1: From frame headers
+                    if (frame.headers && frame.headers['user-name']) {
+                        console.log('Session ID from user-name header:', frame.headers['user-name']);
+                        return frame.headers['user-name'];
                     }
                     
-                    this.updateGameStatus(errorMessage, 'disconnected');
-                    reject(error);
+                    if (frame.headers && frame.headers['session']) {
+                        console.log('Session ID from session header:', frame.headers['session']);
+                        return frame.headers['session'];
+                    }
+                    
+                    // Method 2: From WebSocket URL
+                    const wsUrl = this.stompClient.ws._transport.url;
+                    console.log('WebSocket URL:', wsUrl);
+                    
+                    // Extract session ID from URL pattern: .../572/sessionId/websocket
+                    const urlParts = wsUrl.split('/');
+                    const sessionId = urlParts[urlParts.length - 2]; // Get the part before 'websocket'
+                    
+                    if (sessionId && sessionId !== 'websocket' && sessionId.length > 5) {
+                        console.log('Session ID extracted from URL:', sessionId);
+                        return sessionId;
+                    }
+                    
+                    // Method 3: Fallback
+                    const fallbackId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+                    console.log('Using fallback session ID:', fallbackId);
+                    return fallbackId;
+                    
+                } catch (e) {
+                    console.error('Failed to extract session ID:', e);
+                    return 'fallback_' + Date.now();
                 }
-            );
-        } catch (error) {
-            console.error('Failed to create WebSocket connection:', error);
-            this.updateGameStatus('Failed to create connection', 'disconnected');
-            reject(error);
-        }
-    });
-}
-
-// Enhanced session ID extraction method
-extractSessionId(frame) {
-    try {
-        // Method 1: From frame headers
-        if (frame.headers && frame.headers['user-name']) {
-            console.log('Session ID from user-name header:', frame.headers['user-name']);
-            return frame.headers['user-name'];
-        }
-        
-        if (frame.headers && frame.headers['session']) {
-            console.log('Session ID from session header:', frame.headers['session']);
-            return frame.headers['session'];
-        }
-        
-        // Method 2: From WebSocket URL
-        const wsUrl = this.stompClient.ws._transport.url;
-        console.log('WebSocket URL:', wsUrl);
-        
-        // Extract session ID from URL pattern: .../572/sessionId/websocket
-        const urlParts = wsUrl.split('/');
-        const sessionId = urlParts[urlParts.length - 2]; // Get the part before 'websocket'
-        
-        if (sessionId && sessionId !== 'websocket' && sessionId.length > 5) {
-            console.log('Session ID extracted from URL:', sessionId);
-            return sessionId;
-        }
-        
-        // Method 3: Fallback
-        const fallbackId = 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-        console.log('Using fallback session ID:', fallbackId);
-        return fallbackId;
-        
-    } catch (e) {
-        console.error('Failed to extract session ID:', e);
-        return 'fallback_' + Date.now();
-    }
-}
-
-// Add debugging method to test the connection
-testConnection() {
-    console.log('=== CONNECTION TEST ===');
-    console.log('Connected:', this.connected);
-    console.log('STOMP Client:', !!this.stompClient);
-    console.log('Session ID:', this.sessionId);
-    console.log('Player Name:', this.playerName);
-    
-    if (!this.connected) {
-        console.log('❌ Not connected');
-        return;
-    }
-    
-    // Test subscription
-    console.log('Testing subscription...');
-    this.stompClient.subscribe('/user/queue/test', (message) => {
-        console.log('✅ Test subscription working:', message.body);
-    });
-    
-    // Send test message
-    console.log('Sending test message...');
-    const testMsg = {
-        type: 'test',
-        playerName: this.playerName,
-        sessionId: this.sessionId,
-        timestamp: Date.now()
-    };
-    
-    this.stompClient.send('/app/test', {}, JSON.stringify(testMsg));
-    console.log('Test message sent');
-    console.log('======================');
-}
-
-
-
-// Alternative configuration object (recommended)
-
-    disconnectFromServer() {
-        if (this.stompClient && this.connected) {
-            if (this.gameId) {
-                const disconnectMessage = {
-                    type: 'disconnect',
-                    playerId: this.playerId,
-                    playerName: this.playerName
-                };
-                this.stompClient.send(`/app/game/${this.gameId}/disconnect`, {}, JSON.stringify(disconnectMessage));
             }
-            this.stompClient.disconnect();
-            this.connected = false;
-            this.updateGameStatus('Disconnected from server', 'disconnected');
-        }
-    }
+
+            // Add debugging method to test the connection
+            testConnection() {
+                console.log('=== CONNECTION TEST ===');
+                console.log('Connected:', this.connected);
+                console.log('STOMP Client:', !!this.stompClient);
+                console.log('Session ID:', this.sessionId);
+                console.log('Player Name:', this.playerName);
+                
+                if (!this.connected) {
+                    console.log('❌ Not connected');
+                    return;
+                }
+                
+                // Test subscription
+                console.log('Testing subscription...');
+                this.stompClient.subscribe('/user/queue/test', (message) => {
+                    console.log('✅ Test subscription working:', message.body);
+                });
+                
+                // Send test message
+                console.log('Sending test message...');
+                const testMsg = {
+                    type: 'test',
+                    playerName: this.playerName,
+                    sessionId: this.sessionId,
+                    timestamp: Date.now()
+                };
+                
+                this.stompClient.send('/app/test', {}, JSON.stringify(testMsg));
+                console.log('Test message sent');
+                console.log('======================');
+            }
+
+
+
+            // Alternative configuration object (recommended)
+
+            disconnectFromServer() {
+                if (this.stompClient && this.connected) {
+                    if (this.gameId) {
+                        const disconnectMessage = {
+                            type: 'disconnect',
+                            playerId: this.playerId,
+                            playerName: this.playerName
+                        };
+                        this.stompClient.send(`/app/game/${this.gameId}/disconnect`, {}, JSON.stringify(disconnectMessage));
+                    }
+                    this.stompClient.disconnect();
+                    this.connected = false;
+                    this.updateGameStatus('Disconnected from server', 'disconnected');
+                }
+            }
 
             subscribeToGame(gameId) {
                 if (!this.stompClient || !this.connected) {
@@ -336,810 +255,708 @@ testConnection() {
         }
        
 
-    handleGameMessage(message) {
-        console.log('Game message received:', message);
-        switch (message.type) {
-            case 'move':
-                this.handleRemoteMove(message);
-                break;
-            case 'moveError':
-                console.error('Move error from server:', message.error);
-                this.updateGameInfo(`Move error: ${message.error}`);
-                break;
-            case 'resign':
-                // Opponent resigned
-                this.gameOver = true;
-                this.stopTimer?.();
-                document.getElementById('gameStatus').innerHTML = `<span class="checkmate">${(this.playerColor).charAt(0).toUpperCase() + (this.playerColor).slice(1)} wins by resignation</span>`;
-                this.updateControlStates();
-                break;
-            case 'drawOffer':
-                // Opponent offered a draw – prompt user
-                if (!this.gameOver) {
-                    const accept = confirm('Opponent offered a draw. Do you accept?');
-                    if (accept) {
+            handleGameMessage(message) {
+                console.log('Game message received:', message);
+                switch (message.type) {
+                    case 'move':
+                        this.handleRemoteMove(message);
+                        break;
+                    case 'moveError':
+                        console.error('Move error from server:', message.error);
+                        this.updateGameInfo(`Move error: ${message.error}`);
+                        break;
+                    case 'resign':
+                        // Opponent resigned
+                        this.gameOver = true;
+                        this.stopTimer?.();
+                        document.getElementById('gameStatus').innerHTML = `<span class="checkmate">${(this.playerColor).charAt(0).toUpperCase() + (this.playerColor).slice(1)} wins by resignation</span>`;
+                        this.updateControlStates();
+                        break;
+                    case 'drawOffer':
+                        // Opponent offered a draw – prompt user
+                        if (!this.gameOver) {
+                            const accept = confirm('Opponent offered a draw. Do you accept?');
+                            if (accept) {
+                                this.gameOver = true;
+                                this.stopTimer?.();
+                                document.getElementById('gameStatus').innerHTML = `<span class=\"checkmate\">Game ended in a draw (mutual agreement)</span>`;
+                                if (this.isMultiplayer && this.stompClient && this.connected && this.gameId) {
+                                    const resp = { type: 'drawAccept', playerId: this.playerId };
+                                    this.stompClient.send(`/app/game/${this.gameId}/draw-accept`, {}, JSON.stringify(resp));
+                                }
+                                this.updateControlStates();
+                            } else {
+                                if (this.isMultiplayer && this.stompClient && this.connected && this.gameId) {
+                                    const resp = { type: 'drawDecline', playerId: this.playerId };
+                                    this.stompClient.send(`/app/game/${this.gameId}/draw-decline`, {}, JSON.stringify(resp));
+                                }
+                                this.updateGameInfo('You declined the draw offer.');
+                            }
+                        }
+                        break;
+                    case 'drawAccept':
                         this.gameOver = true;
                         this.stopTimer?.();
                         document.getElementById('gameStatus').innerHTML = `<span class=\"checkmate\">Game ended in a draw (mutual agreement)</span>`;
-                        if (this.isMultiplayer && this.stompClient && this.connected && this.gameId) {
-                            const resp = { type: 'drawAccept', playerId: this.playerId };
-                            this.stompClient.send(`/app/game/${this.gameId}/draw-accept`, {}, JSON.stringify(resp));
-                        }
                         this.updateControlStates();
-                    } else {
-                        if (this.isMultiplayer && this.stompClient && this.connected && this.gameId) {
-                            const resp = { type: 'drawDecline', playerId: this.playerId };
-                            this.stompClient.send(`/app/game/${this.gameId}/draw-decline`, {}, JSON.stringify(resp));
+                        break;
+                    case 'playerJoined':
+                        this.updateGameInfo(`${message.playerName} joined the game`);
+                        if (message.gameState) {
+                            this.updateFromGameState(message.gameState);
                         }
-                        this.updateGameInfo('You declined the draw offer.');
+                        break;
+                    case 'playerDisconnected':
+                        this.updateGameInfo(`${message.playerName} disconnected`);
+                        break;
+                    case 'gameStart':
+                        this.updateGameInfo('Game started! Both players connected.');
+                        if (message.gameState) {
+                            this.updateFromGameState(message.gameState);
+                        }
+                        break;
+                    case 'gameEnd':
+                        this.handleGameEnd(message.gameState);
+                        break;
+                    default:
+                        console.log('Unknown message type:', message.type);
+                }
+            }
+
+            setupTimer() {
+                const enableTimer = document.getElementById('enableRightTimer');
+                const timerSelect = document.getElementById('rightTimerSelect');
+                
+                // Prevent enabling timer after the game has started (local or multiplayer)
+                if (enableTimer && enableTimer.checked && this.gameStarted) {
+                    this.updateGameInfo('You cannot enable the timer after the game has started.');
+                    enableTimer.checked = false;
+                    this.timerEnabled = false;
+                    this.updateTimerDisplay();
+                    return;
+                }
+
+                this.timerEnabled = !!(enableTimer && enableTimer.checked);
+                if (this.timerEnabled && timerSelect) {
+                    this.timePerPlayer = parseInt(timerSelect.value);
+                    this.whiteTimeLeft = this.timePerPlayer;
+                    this.blackTimeLeft = this.timePerPlayer;
+                }
+                this.updateTimerDisplay();
+            }
+
+                startTimer() {
+                    if (!this.timerEnabled) return;
+                    this.stopTimer();
+                    this.timerInterval = setInterval(() => {
+                        if (this.currentPlayer === 'white') {
+                            this.whiteTimeLeft--;
+                        } else {
+                            this.blackTimeLeft--;
+                        }
+                        this.updateTimerDisplay();
+                        if (this.whiteTimeLeft <= 0) {
+                            this.endGameByTimeout('black');
+                        } else if (this.blackTimeLeft <= 0) {
+                            this.endGameByTimeout('white');
+                        }
+                    }, 1000);
+                }
+
+                stopTimer() {
+                    if (this.timerInterval) {
+                        clearInterval(this.timerInterval);
+                        this.timerInterval = null;
                     }
                 }
-                break;
-            case 'drawAccept':
-                this.gameOver = true;
-                this.stopTimer?.();
-                document.getElementById('gameStatus').innerHTML = `<span class=\"checkmate\">Game ended in a draw (mutual agreement)</span>`;
-                this.updateControlStates();
-                break;
-            case 'playerJoined':
-                this.updateGameInfo(`${message.playerName} joined the game`);
-                if (message.gameState) {
-                    this.updateFromGameState(message.gameState);
+
+                updateTimerDisplay() {
+                    const leftTimerContainer = document.getElementById('leftTimer');
+                    const rightTimerContainer = document.getElementById('rightTimer');
+                    const leftTimerDisplay = document.getElementById('leftTimerDisplay');
+                    const rightTimerDisplay = document.getElementById('rightTimerDisplay');
+                    
+                    if (leftTimerDisplay) leftTimerDisplay.textContent = this.formatTime(this.whiteTimeLeft);
+                    if (rightTimerDisplay) rightTimerDisplay.textContent = this.formatTime(this.blackTimeLeft);
+                    const shouldHighlightWhite = this.timerEnabled && this.gameStarted && this.currentPlayer === 'white';
+                    const shouldHighlightBlack = this.timerEnabled && this.gameStarted && this.currentPlayer === 'black';
+                    if (leftTimerContainer) {
+                        leftTimerContainer.classList.toggle('active', shouldHighlightWhite);
+                        leftTimerContainer.classList.toggle('low-time', this.timerEnabled && this.whiteTimeLeft < 60);
+                    }
+                    if (rightTimerContainer) {
+                        rightTimerContainer.classList.toggle('active', shouldHighlightBlack);
+                        rightTimerContainer.classList.toggle('low-time', this.timerEnabled && this.blackTimeLeft < 60);
+                    }
                 }
-                break;
-            case 'playerDisconnected':
-                this.updateGameInfo(`${message.playerName} disconnected`);
-                break;
-            case 'gameStart':
-                this.updateGameInfo('Game started! Both players connected.');
-                if (message.gameState) {
-                    this.updateFromGameState(message.gameState);
+
+                formatTime(seconds) {
+                    const mins = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    return `${mins}:${secs.toString().padStart(2, '0')}`;
                 }
-                break;
-            case 'gameEnd':
-                this.handleGameEnd(message.gameState);
-                break;
-            default:
-                console.log('Unknown message type:', message.type);
-        }
-    }
 
-    setupTimer() {
-        const enableTimer = document.getElementById('enableRightTimer');
-        const timerSelect = document.getElementById('rightTimerSelect');
-        
-        // Prevent enabling timer after the game has started (local or multiplayer)
-        if (enableTimer && enableTimer.checked && this.gameStarted) {
-            this.updateGameInfo('You cannot enable the timer after the game has started.');
-            enableTimer.checked = false;
-            this.timerEnabled = false;
-            this.updateTimerDisplay();
-            return;
-        }
+                endGameByTimeout(winner) {
+                    this.gameOver = true;
+                    this.updateControlStates();
+                    document.getElementById('gameStatus').innerHTML = 
+                        `<span class="checkmate">${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by timeout!</span>`;
+                }
 
-        this.timerEnabled = !!(enableTimer && enableTimer.checked);
-        if (this.timerEnabled && timerSelect) {
-            this.timePerPlayer = parseInt(timerSelect.value);
-            this.whiteTimeLeft = this.timePerPlayer;
-            this.blackTimeLeft = this.timePerPlayer;
-        }
-        this.updateTimerDisplay();
-    }
+                handlePlayerMessage(message) {
+                    console.log('Player message received:', message);
+                    switch (message.type) {
+                        case 'gameJoined':
+                            this.handleGameJoined(message.gameState);
+                            break;
+                        case 'error':
+                            alert('Error: ' + message.error);
+                            break;
+                    }
+                }
 
-    startTimer() {
-        if (!this.timerEnabled) return;
-        this.stopTimer();
-        this.timerInterval = setInterval(() => {
-            if (this.currentPlayer === 'white') {
-                this.whiteTimeLeft--;
-            } else {
-                this.blackTimeLeft--;
+                updateGameStatus(status, type = 'info') {
+                    const statusElement = document.getElementById('connectionStatus');
+                    statusElement.textContent = status;
+                    statusElement.className = `connection-status status-${type}`;
+                }
+
+                updateGameInfo(info) {
+                    const infoElement = document.getElementById('gameInfoPanel');
+                    infoElement.textContent = info;
+                }
+
+                showSecurityWarning() {
+                    const warningElement = document.getElementById('securityWarning');
+                    if (warningElement) {
+                        warningElement.style.display = 'flex';
+                    }
+                }
+
+                hideSecurityWarning() {
+                    const warningElement = document.getElementById('securityWarning');
+                    if (warningElement) {
+                        warningElement.style.display = 'none';
+                    }
+                }
+
+                async createMultiplayerGame() {
+                    const playerName = document.getElementById('playerNameInput').value.trim();
+                    if (!playerName) {
+                        alert('Please enter your name');
+                        return;
+                    }
+                    
+                    this.playerName = playerName;
+                    
+                    try {
+                        await this.connectToServer();
+                        
+                        const response = await fetch(`${BACKEND_URL}/api/games/create`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            // body: JSON.stringify({ 
+                            //     playerId: this.playerId, 
+                            //     playerName: this.playerName 
+                            // })
+
+                            body: JSON.stringify({ 
+                                playerId: this.sessionId , 
+                                playerName: this.playerName 
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const gameSession = await response.json();
+                            console.log('Game created:', gameSession);
+                            
+                            this.gameId = gameSession.gameId;
+                            this.isMultiplayer = true;
+                            this.playerColor = 'white'; // Creator is always white
+                            
+                            this.subscribeToGame(this.gameId);
+                            this.updateGameInfo(`Game created! Share this ID: ${this.gameId}. Waiting for opponent...`);
+                            closeMultiplayerMenu();
+                        } else {
+                            const errorText = await response.text();
+                            console.error('Failed to create game:', errorText);
+                            throw new Error('Failed to create game: ' + errorText);
+                        }
+                    } catch (error) {
+                        console.error('Error creating game:', error);
+                        alert('Failed to create game: ' + error.message);
+                    }
             }
-            this.updateTimerDisplay();
-            if (this.whiteTimeLeft <= 0) {
-                this.endGameByTimeout('black');
-            } else if (this.blackTimeLeft <= 0) {
-                this.endGameByTimeout('white');
-            }
-        }, 1000);
-    }
-
-    stopTimer() {
-        if (this.timerInterval) {
-            clearInterval(this.timerInterval);
-            this.timerInterval = null;
-        }
-    }
-
-    updateTimerDisplay() {
-        const leftTimerContainer = document.getElementById('leftTimer');
-        const rightTimerContainer = document.getElementById('rightTimer');
-        const leftTimerDisplay = document.getElementById('leftTimerDisplay');
-        const rightTimerDisplay = document.getElementById('rightTimerDisplay');
-        
-        if (leftTimerDisplay) leftTimerDisplay.textContent = this.formatTime(this.whiteTimeLeft);
-        if (rightTimerDisplay) rightTimerDisplay.textContent = this.formatTime(this.blackTimeLeft);
-        const shouldHighlightWhite = this.timerEnabled && this.gameStarted && this.currentPlayer === 'white';
-        const shouldHighlightBlack = this.timerEnabled && this.gameStarted && this.currentPlayer === 'black';
-        if (leftTimerContainer) {
-            leftTimerContainer.classList.toggle('active', shouldHighlightWhite);
-            leftTimerContainer.classList.toggle('low-time', this.timerEnabled && this.whiteTimeLeft < 60);
-        }
-        if (rightTimerContainer) {
-            rightTimerContainer.classList.toggle('active', shouldHighlightBlack);
-            rightTimerContainer.classList.toggle('low-time', this.timerEnabled && this.blackTimeLeft < 60);
-        }
-    }
-
-    formatTime(seconds) {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    endGameByTimeout(winner) {
-        this.gameOver = true;
-        this.updateControlStates();
-        document.getElementById('gameStatus').innerHTML = 
-            `<span class="checkmate">${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by timeout!</span>`;
-    }
-
-    handlePlayerMessage(message) {
-        console.log('Player message received:', message);
-        switch (message.type) {
-            case 'gameJoined':
-                this.handleGameJoined(message.gameState);
-                break;
-            case 'error':
-                alert('Error: ' + message.error);
-                break;
-        }
-    }
-
-    updateGameStatus(status, type = 'info') {
-        const statusElement = document.getElementById('connectionStatus');
-        statusElement.textContent = status;
-        statusElement.className = `connection-status status-${type}`;
-    }
-
-    updateGameInfo(info) {
-        const infoElement = document.getElementById('gameInfoPanel');
-        infoElement.textContent = info;
-    }
-
-    showSecurityWarning() {
-        const warningElement = document.getElementById('securityWarning');
-        if (warningElement) {
-            warningElement.style.display = 'flex';
-        }
-    }
-
-    hideSecurityWarning() {
-        const warningElement = document.getElementById('securityWarning');
-        if (warningElement) {
-            warningElement.style.display = 'none';
-        }
-    }
-
-    async createMultiplayerGame() {
-        const playerName = document.getElementById('playerNameInput').value.trim();
-        if (!playerName) {
-            alert('Please enter your name');
-            return;
-        }
-        
-        this.playerName = playerName;
-        
-        try {
-            await this.connectToServer();
             
-            const response = await fetch(`${BACKEND_URL}/api/games/create`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                // body: JSON.stringify({ 
-                //     playerId: this.playerId, 
-                //     playerName: this.playerName 
-                // })
 
-                body: JSON.stringify({ 
-                    playerId: this.sessionId , 
-                    playerName: this.playerName 
-                })
-            });
-            
-            if (response.ok) {
-                const gameSession = await response.json();
-                console.log('Game created:', gameSession);
+
+            // Fixed joinRandomGame method - replace your existing one
+            async joinRandomGame() {
+                const nameInput = document.getElementById('playerNameInput');
+                const playerName = nameInput.value.trim();
                 
-                this.gameId = gameSession.gameId;
-                this.isMultiplayer = true;
-                this.playerColor = 'white'; // Creator is always white
+                if (!playerName) {
+                    alert('Please enter your name first');
+                    return;
+                }
                 
-                this.subscribeToGame(this.gameId);
-                this.updateGameInfo(`Game created! Share this ID: ${this.gameId}. Waiting for opponent...`);
-                closeMultiplayerMenu();
-            } else {
-                const errorText = await response.text();
-                console.error('Failed to create game:', errorText);
-                throw new Error('Failed to create game: ' + errorText);
-            }
-        } catch (error) {
-            console.error('Error creating game:', error);
-            alert('Failed to create game: ' + error.message);
-        }
-}
-   
-//     // Replace your existing joinRandomGame function in ChessGame class
-// async joinRandomGame() {
-//     const nameInput = document.getElementById('playerNameInput');
-//     const playerName = nameInput.value.trim();
-    
-//     if (!playerName) {
-//         alert('Please enter your name first');
-//         return;
-//     }
-    
-//     this.playerName = playerName;
-
-// try {
-//         // Connect to WebSocket first
-//         console.log('=== JOINING RANDOM GAME ===');
-//         console.log('Player Name:', this.playerName);
-//         //console.log('Player ID:', this.playerId);
-        
-//         await this.connectToServer();
-//         console.log('WebSocket connected, sessionId:', this.sessionId);
-        
-//         // Subscribe to match queue messages
-//         console.log('Subscribing to match queue...');
-//         this.stompClient.subscribe('/user/queue/match', (message) => {
-//             console.log('=== MATCH MESSAGE RECEIVED ===');
-//             console.log('Raw message:', message.body);
-            
-//             try {
-//                 const matchMessage = JSON.parse(message.body);
-//                 console.log('Parsed message:', matchMessage);
-//                 this.handleMatchMessage(matchMessage);
-//             } catch (error) {
-//                 console.error('Error parsing match message:', error);
-//                 console.error('Message body was:', message.body);
-//             }
-//         });
-        
-//         // Small delay to ensure subscription is registered
-//         await new Promise(resolve => setTimeout(resolve, 500));
-        
-//         // Send matchmaking request via WebSocket
-//         const matchRequest = {
-//             playerName: this.playerName,
-//             type: 'RANDOM_MATCH'
-//         };
-        
-//         console.log('Sending match request:', matchRequest);
-//         console.log('Current sessionId:', this.sessionId);
-//         console.log('STOMP client state:', this.stompClient.connected);
-        
-//         // Send the request
-//         this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
-        
-//         // Show waiting UI
-//         this.waitingForMatch = true;
-//         this.showWaitingStatus('Searching for an opponent...');
-//         this.updateGameStatus('Searching for opponent...', 'searching');
-        
-//         console.log('Random match request sent successfully');
-//         console.log('===========================');
-        
-//     } catch (error) {
-//         console.error('Error in random matchmaking:', error);
-//         alert('Failed to start matchmaking: ' + error.message);
-//         this.hideWaitingStatus();
-//         this.waitingForMatch = false;
-//     }
-// }
-
-
-// Fixed joinRandomGame method - replace your existing one
-async joinRandomGame() {
-    const nameInput = document.getElementById('playerNameInput');
-    const playerName = nameInput.value.trim();
-    
-    if (!playerName) {
-        alert('Please enter your name first');
-        return;
-    }
-    
-    this.playerName = playerName;
-    
-    try {
-        console.log('=== JOINING RANDOM GAME ===');
-        console.log('Player Name:', this.playerName);
-        
-        await this.connectToServer();
-        console.log('WebSocket connected, sessionId:', this.sessionId);
-        
-        // CRITICAL FIX: Subscribe to the correct destination that matches backend
-        console.log('Subscribing to match queue...');
-        
-        // Subscribe to both possible destinations to ensure we catch the message
-        this.stompClient.subscribe('/user/queue/match', (message) => {
-            console.log('=== MATCH MESSAGE RECEIVED (generic) ===');
-            console.log('Raw message:', message.body);
-            try {
-                const matchMessage = JSON.parse(message.body);
-                console.log('Parsed message:', matchMessage);
-                this.handleMatchMessage(matchMessage);
-            } catch (error) {
-                console.error('Error parsing match message:', error);
-            }
-        });
-        
-        // ALSO subscribe to the session-specific destination
-        this.stompClient.subscribe(`/user/${this.sessionId}/queue/match`, (message) => {
-            console.log('=== MATCH MESSAGE RECEIVED (session-specific) ===');
-            console.log('Raw message:', message.body);
-            try {
-                const matchMessage = JSON.parse(message.body);
-                console.log('Parsed message:', matchMessage);
-                this.handleMatchMessage(matchMessage);
-            } catch (error) {
-                console.error('Error parsing match message:', error);
-            }
-        });
-        
-        // Small delay to ensure subscriptions are registered
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Send matchmaking request with proper session information
-        const matchRequest = {
-            playerName: this.playerName,
-            type: 'RANDOM_MATCH',
-            sessionId: this.sessionId  // Add session ID explicitly
-        };
-        
-        console.log('Sending match request:', matchRequest);
-        console.log('Current sessionId:', this.sessionId);
-        console.log('STOMP client state:', this.stompClient.connected);
-        
-        // Send the request
-        this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
-        
-        // Show waiting UI
-        this.waitingForMatch = true;
-        this.showWaitingStatus('Searching for an opponent...');
-        this.updateGameStatus('Searching for opponent...', 'searching');
-        
-        console.log('Random match request sent successfully');
-        console.log('===========================');
-        
-    } catch (error) {
-        console.error('Error in random matchmaking:', error);
-        alert('Failed to start matchmaking: ' + error.message);
-        this.hideWaitingStatus();
-        this.waitingForMatch = false;
-    }
-}
-
-// Add this method to handle match-related messages
-
-    // // FIXED: Handle match-related messages
-    // handleMatchMessage(message) {
-    //     console.log('=== MATCH MESSAGE RECEIVED ===');
-    //     console.log('Type:', message.type);
-    //     console.log('Message:', message);
-    //     console.log('===============================');
-        
-    //     switch(message.type) {
-    //         case 'WAITING_FOR_OPPONENT':
-    //             this.handleWaitingForOpponent(message);
-    //             break;
+                this.playerName = playerName;
                 
-    //         case 'MATCH_FOUND':
-    //             this.handleMatchFound(message);
-    //             break;
-                
-    //         case 'MATCH_TIMEOUT':
-    //             this.handleMatchTimeout(message);
-    //             break;
-                
-    //         case 'MATCH_CANCELLED':
-    //             this.handleMatchCancelled(message);
-    //             break;
-                
-    //         case 'MATCH_ERROR':
-    //             this.handleMatchError(message);
-    //             break;
-                
-    //         default:
-    //             console.log('Unknown match message type:', message.type);
-    //     }
-    // }
-
-
-    // Enhanced handleMatchMessage with better error handling
-handleMatchMessage(message) {
-    console.log('=== MATCH MESSAGE HANDLER ===');
-    console.log('Message type:', message.type);
-    console.log('Full message:', message);
-    
-    // Prevent duplicate handling
-    if (this.lastHandledMessage && 
-        this.lastHandledMessage.type === message.type && 
-        this.lastHandledMessage.timestamp === message.timestamp) {
-        console.log('Duplicate message ignored');
-        return;
-    }
-    this.lastHandledMessage = message;
-    
-    try {
-        switch(message.type) {
-            case 'WAITING_FOR_OPPONENT':
-                console.log('✅ Received WAITING_FOR_OPPONENT');
-                this.handleWaitingForOpponent(message);
-                break;
-                
-            case 'MATCH_FOUND':
-                console.log('✅ Received MATCH_FOUND');
-                this.handleMatchFound(message);
-                break;
-                
-            case 'MATCH_TIMEOUT':
-                console.log('✅ Received MATCH_TIMEOUT');
-                this.handleMatchTimeout(message);
-                break;
-                
-            case 'MATCH_CANCELLED':
-                console.log('✅ Received MATCH_CANCELLED');
-                this.handleMatchCancelled(message);
-                break;
-                
-            case 'MATCH_ERROR':
-                console.log('✅ Received MATCH_ERROR');
-                this.handleMatchError(message);
-                break;
-                
-            default:
-                console.warn('Unknown match message type:', message.type);
-        }
-    } catch (error) {
-        console.error('Error handling match message:', error);
-    }
-    
-    console.log('=============================');
-}
-
-    handleWaitingForOpponent(message) {
-        console.log('Waiting for opponent, queue size:', message.queueSize);
-        this.updateGameStatus('Waiting for opponent...', 'waiting');
-        const waitingMsg = message.queueSize ? 
-            `Searching for opponent... (${message.queueSize} players in queue)` : 
-            'Searching for opponent...';
-        this.updateWaitingMessage(waitingMsg);
-    }
-
-handleMatchFound(message) {
-      try{  console.log('=== MATCH FOUND ===');
-        console.log('Game ID:', message.gameId);
-        console.log('My Color:', message.playerColor);
-        console.log('Opponent:', message.opponentName);
-        console.log('Game State:', message.gameState);
-        console.log('==================');
-        
-        // Set up game state
-        this.gameId = message.gameId;
-        this.playerColor = message.playerColor;
-        this.isMultiplayer = true;
-        this.gameStarted = true;
-        this.bothPlayersReady = true;
-        this.waitingForMatch = false;
-        
-       console.log('Updated game properties:');
-        console.log('- gameId:', this.gameId);
-        console.log('- playerColor:', this.playerColor);
-        console.log('- isMultiplayer:', this.isMultiplayer);
-        console.log('- gameStarted:', this.gameStarted);
-        console.log('- bothPlayersReady:', this.bothPlayersReady);
-        
-        // Subscribe to game-specific channels
-        console.log('Subscribing to game channels...');
-        this.subscribeToGame(this.gameId);
-        
-        // Hide waiting UI and close menu
-        console.log('Hiding waiting UI...');
-        this.hideWaitingStatus();
-        closeMultiplayerMenu();
-        
-        // Update game info
-        this.updateGameStatus('Match found! Game starting...', 'matched');
-        this.updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
-        
-        // Update game state if provided
-        if (message.gameState) {
-              console.log('Updating from game state...');
-            this.updateFromGameState(message.gameState);
-        }
-
-        // Start timer if enabled
-        if (this.timerEnabled) {
-            console.log('Starting timer...');
-            this.startTimer();
-        }
-
-       // CRITICAL FIX: Update all UI components
-        console.log('Updating UI components...');
-        this.updateControlStates();
-        this.updateStatus();
-        this.updateDisplay(); // This was missing!
-        
-        console.log('=== MATCH FOUND COMPLETE ===');
-        
-        // Show success alert
-        setTimeout(() => {
-            alert(`Match found! You are playing as ${message.playerColor} against ${message.opponentName}`);
-        }, 100);
-        
-    } catch (error) {
-        console.error('Error in handleMatchFound:', error);
-        alert('Error setting up game: ' + error.message);
-        this.hideWaitingStatus();
-        this.waitingForMatch = false;
-    }
-    }
-handleMatchTimeout(message) {
-        console.log('Match search timed out');
-        this.waitingForMatch = false;
-        this.hideWaitingStatus();
-        this.updateGameStatus('Match search timed out', 'timeout');
-        alert(message.message || 'No opponent found within the time limit. Please try again.');
-    }
-
-    handleMatchCancelled(message) {
-        console.log('Match search cancelled:', message.message);
-        this.waitingForMatch = false;
-        this.hideWaitingStatus();
-        this.updateGameStatus('Match search cancelled', 'cancelled');
-        if (message.message && message.message !== 'Match search cancelled by user') {
-            alert(message.message);
-        }
-    }
-
-    handleMatchError(message) {
-        console.log('Match error:', message.message);
-        this.waitingForMatch = false;
-        this.hideWaitingStatus();
-        this.updateGameStatus('Match error occurred', 'error');
-        alert('Matchmaking error: ' + (message.message || 'Unknown error'));
-    }
-
-    // FIXED: Cancel random match search
-    cancelRandomMatch() {
-        if (this.stompClient && this.connected && this.waitingForMatch) {
-            const cancelRequest = {
-                playerName: this.playerName
-            };
-            
-            console.log('Sending cancel request');
-            this.stompClient.send('/app/cancelRandomMatch', {}, JSON.stringify(cancelRequest));
-            this.waitingForMatch = false;
-            this.hideWaitingStatus();
-            this.updateGameStatus('Match search cancelled', 'cancelled');
-        }
-    }
-
-    // FIXED: UI helper methods with proper timer display
-    showWaitingStatus(message) {
-        const modal = document.getElementById('multiplayerModal');
-        const dialog = modal.querySelector('.multiplayer-dialog');
-        
-        let waitingDiv = document.getElementById('waitingStatus');
-        if (!waitingDiv) {
-            waitingDiv = document.createElement('div');
-            waitingDiv.id = 'waitingStatus';
-            waitingDiv.className = 'waiting-status';
-            waitingDiv.innerHTML = `
-                <div class="waiting-content">
-                    <div class="waiting-spinner">⏳</div>
-                    <div class="waiting-message"></div>
-                    <div class="waiting-timer">Time elapsed: 0:00</div>
-                    <div class="waiting-timeout">Timeout in: 2:00</div>
-                    <button class="btn btn-cancel" onclick="game.cancelRandomMatch()">Cancel Search</button>
-                </div>
-            `;
-            dialog.appendChild(waitingDiv);
-        }
-        
-        this.updateWaitingMessage(message);
-        
-        // Hide other options while waiting
-        const options = dialog.querySelector('.multiplayer-options');
-        if (options) options.style.display = 'none';
-        waitingDiv.style.display = 'block';
-        
-        // Start timer with proper timeout countdown
-        this.startWaitingTimer();
-    }
-
-    hideWaitingStatus() {
-        const waitingDiv = document.getElementById('waitingStatus');
-        if (waitingDiv) {
-            waitingDiv.style.display = 'none';
-        }
-        
-        const options = document.querySelector('.multiplayer-options');
-        if (options) {
-            options.style.display = 'block';
-        }
-        
-        this.stopWaitingTimer();
-    }
-
-    updateWaitingMessage(message) {
-        const waitingMessage = document.querySelector('.waiting-message');
-        if (waitingMessage) {
-            waitingMessage.textContent = message;
-        }
-    }
-
-    // FIXED: Proper waiting timer with timeout countdown
-    startWaitingTimer() {
-        this.waitingStartTime = Date.now();
-        const timeoutDuration = 120000; // 2 minutes in milliseconds
-        
-        this.waitingTimerInterval = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - this.waitingStartTime) / 1000);
-            const remaining = Math.max(0, 120 - elapsed); // 120 seconds total
-            
-            const elapsedMinutes = Math.floor(elapsed / 60);
-            const elapsedSeconds = elapsed % 60;
-            const elapsedString = `${elapsedMinutes}:${elapsedSeconds.toString().padStart(2, '0')}`;
-            
-            const remainingMinutes = Math.floor(remaining / 60);
-            const remainingSecondsNum = remaining % 60;
-            const remainingString = `${remainingMinutes}:${remainingSecondsNum.toString().padStart(2, '0')}`;
-            
-            const elapsedElement = document.querySelector('.waiting-timer');
-            const timeoutElement = document.querySelector('.waiting-timeout');
-            
-            if (elapsedElement) {
-                elapsedElement.textContent = `Time elapsed: ${elapsedString}`;
-            }
-            if (timeoutElement) {
-                timeoutElement.textContent = `Timeout in: ${remainingString}`;
-                if (remaining <= 30) {
-                    timeoutElement.style.color = 'red';
-                } else if (remaining <= 60) {
-                    timeoutElement.style.color = 'orange';
+                try {
+                    console.log('=== JOINING RANDOM GAME ===');
+                    console.log('Player Name:', this.playerName);
+                    
+                    await this.connectToServer();
+                    console.log('WebSocket connected, sessionId:', this.sessionId);
+                    
+                    // CRITICAL FIX: Subscribe to the correct destination that matches backend
+                    console.log('Subscribing to match queue...');
+                    
+                    // Subscribe to both possible destinations to ensure we catch the message
+                    this.stompClient.subscribe('/user/queue/match', (message) => {
+                        console.log('=== MATCH MESSAGE RECEIVED (generic) ===');
+                        console.log('Raw message:', message.body);
+                        try {
+                            const matchMessage = JSON.parse(message.body);
+                            console.log('Parsed message:', matchMessage);
+                            this.handleMatchMessage(matchMessage);
+                        } catch (error) {
+                            console.error('Error parsing match message:', error);
+                        }
+                    });
+                    
+                    // ALSO subscribe to the session-specific destination
+                    this.stompClient.subscribe(`/user/${this.sessionId}/queue/match`, (message) => {
+                        console.log('=== MATCH MESSAGE RECEIVED (session-specific) ===');
+                        console.log('Raw message:', message.body);
+                        try {
+                            const matchMessage = JSON.parse(message.body);
+                            console.log('Parsed message:', matchMessage);
+                            this.handleMatchMessage(matchMessage);
+                        } catch (error) {
+                            console.error('Error parsing match message:', error);
+                        }
+                    });
+                    
+                    // Small delay to ensure subscriptions are registered
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Send matchmaking request with proper session information
+                    const matchRequest = {
+                        playerName: this.playerName,
+                        type: 'RANDOM_MATCH',
+                        sessionId: this.sessionId  // Add session ID explicitly
+                    };
+                    
+                    console.log('Sending match request:', matchRequest);
+                    console.log('Current sessionId:', this.sessionId);
+                    console.log('STOMP client state:', this.stompClient.connected);
+                    
+                    // Send the request
+                    this.stompClient.send('/app/findRandomMatch', {}, JSON.stringify(matchRequest));
+                    
+                    // Show waiting UI
+                    this.waitingForMatch = true;
+                    this.showWaitingStatus('Searching for an opponent...');
+                    this.updateGameStatus('Searching for opponent...', 'searching');
+                    
+                    console.log('Random match request sent successfully');
+                    console.log('===========================');
+                    
+                } catch (error) {
+                    console.error('Error in random matchmaking:', error);
+                    alert('Failed to start matchmaking: ' + error.message);
+                    this.hideWaitingStatus();
+                    this.waitingForMatch = false;
                 }
             }
-            
-            // Auto-cancel if we've exceeded timeout (safety check)
-            if (remaining <= 0 && this.waitingForMatch) {
-                console.log('Frontend timeout reached, cancelling search');
-                this.cancelRandomMatch();
+
+
+
+                // Enhanced handleMatchMessage with better error handling
+            handleMatchMessage(message) {
+                console.log('=== MATCH MESSAGE HANDLER ===');
+                console.log('Message type:', message.type);
+                console.log('Full message:', message);
+                
+                // Prevent duplicate handling
+                if (this.lastHandledMessage && 
+                    this.lastHandledMessage.type === message.type && 
+                    this.lastHandledMessage.timestamp === message.timestamp) {
+                    console.log('Duplicate message ignored');
+                    return;
+                }
+                this.lastHandledMessage = message;
+                
+                try {
+                    switch(message.type) {
+                        case 'WAITING_FOR_OPPONENT':
+                            console.log('✅ Received WAITING_FOR_OPPONENT');
+                            this.handleWaitingForOpponent(message);
+                            break;
+                            
+                        case 'MATCH_FOUND':
+                            console.log('✅ Received MATCH_FOUND');
+                            this.handleMatchFound(message);
+                            break;
+                            
+                        case 'MATCH_TIMEOUT':
+                            console.log('✅ Received MATCH_TIMEOUT');
+                            this.handleMatchTimeout(message);
+                            break;
+                            
+                        case 'MATCH_CANCELLED':
+                            console.log('✅ Received MATCH_CANCELLED');
+                            this.handleMatchCancelled(message);
+                            break;
+                            
+                        case 'MATCH_ERROR':
+                            console.log('✅ Received MATCH_ERROR');
+                            this.handleMatchError(message);
+                            break;
+                            
+                        default:
+                            console.warn('Unknown match message type:', message.type);
+                    }
+                } catch (error) {
+                    console.error('Error handling match message:', error);
+                }
+                
+                console.log('=============================');
             }
-            
-        }, 1000);
-    }
 
-    stopWaitingTimer() {
-        if (this.waitingTimerInterval) {
-            clearInterval(this.waitingTimerInterval);
-            this.waitingTimerInterval = null;
-            this.waitingStartTime = null;
-        }
-    }
+            handleWaitingForOpponent(message) {
+                console.log('Waiting for opponent, queue size:', message.queueSize);
+                this.updateGameStatus('Waiting for opponent...', 'waiting');
+                const waitingMsg = message.queueSize ? 
+                    `Searching for opponent... (${message.queueSize} players in queue)` : 
+                    'Searching for opponent...';
+                this.updateWaitingMessage(waitingMsg);
+            }
 
-    async joinSpecificGame() {
-        const playerName = document.getElementById('playerNameInput').value.trim();
-        const gameId = document.getElementById('gameIdInput').value.trim();
-        if (!playerName) { alert('Please enter your name'); return; }
-        if (!gameId) { alert('Please enter a game ID'); return; }
-        this.playerName = playerName;
-        this.gameId = gameId;
-        try {
-            await this.connectToServer();
-            const joinMessage = { type: 'join', playerId: this.sessionId, playerName: this.playerName };
-            this.subscribeToGame(this.gameId);
-            this.stompClient.send(`/app/game/${this.gameId}/join`, {}, JSON.stringify(joinMessage));
-            this.updateGameInfo(`Attempting to join game ${this.gameId}...`);
-            closeMultiplayerMenu();
-        } catch (error) {
-            console.error('Error joining specific game:', error);
-            alert('Failed to connect to game. Make sure the server is running and the game ID is correct.');
-        }
-    }
+            handleMatchFound(message) {
+                try{  console.log('=== MATCH FOUND ===');
+                    console.log('Game ID:', message.gameId);
+                    console.log('My Color:', message.playerColor);
+                    console.log('Opponent:', message.opponentName);
+                    console.log('Game State:', message.gameState);
+                    console.log('==================');
+                    
+                    // Set up game state
+                    this.gameId = message.gameId;
+                    this.playerColor = message.playerColor;
+                    this.isMultiplayer = true;
+                    this.gameStarted = true;
+                    this.bothPlayersReady = true;
+                    this.waitingForMatch = false;
+                    
+                console.log('Updated game properties:');
+                    console.log('- gameId:', this.gameId);
+                    console.log('- playerColor:', this.playerColor);
+                    console.log('- isMultiplayer:', this.isMultiplayer);
+                    console.log('- gameStarted:', this.gameStarted);
+                    console.log('- bothPlayersReady:', this.bothPlayersReady);
+                    
+                    // Subscribe to game-specific channels
+                    console.log('Subscribing to game channels...');
+                    this.subscribeToGame(this.gameId);
+                    
+                    // Hide waiting UI and close menu
+                    console.log('Hiding waiting UI...');
+                    this.hideWaitingStatus();
+                    closeMultiplayerMenu();
+                    
+                    // Update game info
+                    this.updateGameStatus('Match found! Game starting...', 'matched');
+                    this.updateGameInfo(`Playing as ${message.playerColor} vs ${message.opponentName}`);
+                    
+                    // Update game state if provided
+                    if (message.gameState) {
+                        console.log('Updating from game state...');
+                        this.updateFromGameState(message.gameState);
+                    }
 
-        handleGameJoined(gameState) {
-            this.isMultiplayer = true;
-            this.gameId = gameState.gameId;
-            
-            console.log('Game state received:', gameState);
-            console.log('My player ID:', this.playerId);
-            
-            // Fixed player color assignment - backend sends Player objects with 'id' field
-            if (gameState.whitePlayer && gameState.whitePlayer.id === this.sessionId) {
-                this.playerColor = 'white';
-            } else if (gameState.blackPlayer && gameState.blackPlayer.id === this.sessionId) {
-                this.playerColor = 'black';
-            } else {
-                // Fallback: assign based on available slots
-                if (!gameState.whitePlayer) {
-                    this.playerColor = 'white';
-                } else if (!gameState.blackPlayer) {
-                    this.playerColor = 'black';
-                } else {
-                    console.error('Could not determine player color!');
-                    this.playerColor = null;
+                    // Start timer if enabled
+                    if (this.timerEnabled) {
+                        console.log('Starting timer...');
+                        this.startTimer();
+                    }
+
+                // CRITICAL FIX: Update all UI components
+                    console.log('Updating UI components...');
+                    this.updateControlStates();
+                    this.updateStatus();
+                    this.updateDisplay(); // This was missing!
+                    
+                    console.log('=== MATCH FOUND COMPLETE ===');
+                    //====================================
+                    // Show success alert
+                    setTimeout(() => {
+                        alert(`Match found! You are playing as ${message.playerColor} against ${message.opponentName}`);
+                    }, 100);
+                    //====================================
+                } catch (error) {
+                    console.error('Error in handleMatchFound:', error);
+                    alert('Error setting up game: ' + error.message);
+                    this.hideWaitingStatus();
+                    this.waitingForMatch = false;
+                }
+                }
+            handleMatchTimeout(message) {
+                    console.log('Match search timed out');
+                    this.waitingForMatch = false;
+                    this.hideWaitingStatus();
+                    this.updateGameStatus('Match search timed out', 'timeout');
+                    alert(message.message || 'No opponent found within the time limit. Please try again.');
+                }
+
+            handleMatchCancelled(message) {
+                console.log('Match search cancelled:', message.message);
+                this.waitingForMatch = false;
+                this.hideWaitingStatus();
+                this.updateGameStatus('Match search cancelled', 'cancelled');
+                if (message.message && message.message !== 'Match search cancelled by user') {
+                    alert(message.message);
                 }
             }
-            
-            // Critical check to ensure player color was assigned
-            if (!this.playerColor) {
-                console.error('Player color assignment failed! GameState:', gameState);
-                this.updateGameInfo('Error: Could not determine your color. Try rejoining the game.');
-                return;
-            }
-            
-            console.log('Final player color assignment:', this.playerColor);
-            
-            this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
-            this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
-            this.updateControlStates();
-            
-            if (!this.bothPlayersReady) {
-                this.updateGameInfo(`Waiting for opponent... Share game ID: ${this.gameId}`);
-            } else {
-                this.updateGameInfo(`Game ready. You are ${this.playerColor}. ${this.currentPlayer === 'white' ? 'White' : 'Black'} to move.`);
-            }
-        }
 
-    handleRemoteMove(message) {
-        if (message.move) {
-            const move = message.move;
-            this.applyMoveFromServer(move);
-            if (message.gameState) {
-                this.updateFromGameState(message.gameState);
+            handleMatchError(message) {
+                console.log('Match error:', message.message);
+                this.waitingForMatch = false;
+                this.hideWaitingStatus();
+                this.updateGameStatus('Match error occurred', 'error');
+                alert('Matchmaking error: ' + (message.message || 'Unknown error'));
             }
-        }
-    }
 
-    applyMoveFromServer(move) {
-        const piece = this.board[move.fromRow][move.fromCol];
-        const capturedPiece = this.board[move.toRow][move.toCol];
-        if (capturedPiece) this.capturedPieces[capturedPiece.color].push(capturedPiece);
-        this.board[move.toRow][move.toCol] = piece;
-        this.board[move.fromRow][move.fromCol] = null;
-        if (piece && piece.type === 'king') this.kings[piece.color] = { row: move.toRow, col: move.toCol };
-        this.moveHistory.push({ player: move.playerColor, notation: move.notation, fullMove: Math.floor(this.moveHistory.length / 2) + 1 });
-        this.updateDisplay();
-    }
-
-    // Add this method to your frontend ChessGame class
-updateBoardFromServer(serverBoardState) {
-    try {
-        console.log('Syncing board from server:', serverBoardState);
-        const boardData = JSON.parse(serverBoardState);
-        const serverBoard = boardData.board;
-        
-        // Convert server format to frontend format
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                if (serverBoard[row][col]) {
-                    const [color, type] = serverBoard[row][col].split('_');
-                    this.board[row][col] = { type, color };
-                } else {
-                    this.board[row][col] = null;
+            // FIXED: Cancel random match search
+            cancelRandomMatch() {
+                if (this.stompClient && this.connected && this.waitingForMatch) {
+                    const cancelRequest = {
+                        playerName: this.playerName
+                    };
+                    
+                    console.log('Sending cancel request');
+                    this.stompClient.send('/app/cancelRandomMatch', {}, JSON.stringify(cancelRequest));
+                    this.waitingForMatch = false;
+                    this.hideWaitingStatus();
+                    this.updateGameStatus('Match search cancelled', 'cancelled');
                 }
             }
-        }
-        
-        // Update kings positions
-        this.updateKingsFromBoard();
-        console.log('Board synced successfully from server');
-    } catch (error) {
-        console.error('Failed to sync board from server:', error);
-    }
-}
+
+            // FIXED: UI helper methods with proper timer display
+            showWaitingStatus(message) {
+                const modal = document.getElementById('multiplayerModal');
+                const dialog = modal.querySelector('.multiplayer-dialog');
+                
+                let waitingDiv = document.getElementById('waitingStatus');
+                if (!waitingDiv) {
+                    waitingDiv = document.createElement('div');
+                    waitingDiv.id = 'waitingStatus';
+                    waitingDiv.className = 'waiting-status';
+                    waitingDiv.innerHTML = `
+                        <div class="waiting-content">
+                            <div class="waiting-spinner">⏳</div>
+                            <div class="waiting-message"></div>
+                            <div class="waiting-timer">Time elapsed: 0:00</div>
+                            <div class="waiting-timeout">Timeout in: 2:00</div>
+                            <button class="btn btn-cancel" onclick="game.cancelRandomMatch()">Cancel Search</button>
+                        </div>
+                    `;
+                    dialog.appendChild(waitingDiv);
+                }
+                
+                this.updateWaitingMessage(message);
+                
+                // Hide other options while waiting
+                const options = dialog.querySelector('.multiplayer-options');
+                if (options) options.style.display = 'none';
+                waitingDiv.style.display = 'block';
+                
+                // Start timer with proper timeout countdown
+                this.startWaitingTimer();
+            }
+
+            hideWaitingStatus() {
+                const waitingDiv = document.getElementById('waitingStatus');
+                if (waitingDiv) {
+                    waitingDiv.style.display = 'none';
+                }
+                
+                const options = document.querySelector('.multiplayer-options');
+                if (options) {
+                    options.style.display = 'block';
+                }
+                
+                this.stopWaitingTimer();
+            }
+
+            updateWaitingMessage(message) {
+                const waitingMessage = document.querySelector('.waiting-message');
+                if (waitingMessage) {
+                    waitingMessage.textContent = message;
+                }
+            }
+
+                // FIXED: Proper waiting timer with timeout countdown
+                startWaitingTimer() {
+                    this.waitingStartTime = Date.now();
+                    const timeoutDuration = 120000; // 2 minutes in milliseconds
+                    
+                    this.waitingTimerInterval = setInterval(() => {
+                        const elapsed = Math.floor((Date.now() - this.waitingStartTime) / 1000);
+                        const remaining = Math.max(0, 120 - elapsed); // 120 seconds total
+                        
+                        const elapsedMinutes = Math.floor(elapsed / 60);
+                        const elapsedSeconds = elapsed % 60;
+                        const elapsedString = `${elapsedMinutes}:${elapsedSeconds.toString().padStart(2, '0')}`;
+                        
+                        const remainingMinutes = Math.floor(remaining / 60);
+                        const remainingSecondsNum = remaining % 60;
+                        const remainingString = `${remainingMinutes}:${remainingSecondsNum.toString().padStart(2, '0')}`;
+                        
+                        const elapsedElement = document.querySelector('.waiting-timer');
+                        const timeoutElement = document.querySelector('.waiting-timeout');
+                        
+                        if (elapsedElement) {
+                            elapsedElement.textContent = `Time elapsed: ${elapsedString}`;
+                        }
+                        if (timeoutElement) {
+                            timeoutElement.textContent = `Timeout in: ${remainingString}`;
+                            if (remaining <= 30) {
+                                timeoutElement.style.color = 'red';
+                            } else if (remaining <= 60) {
+                                timeoutElement.style.color = 'orange';
+                            }
+                        }
+                        
+                        // Auto-cancel if we've exceeded timeout (safety check)
+                        if (remaining <= 0 && this.waitingForMatch) {
+                            console.log('Frontend timeout reached, cancelling search');
+                            this.cancelRandomMatch();
+                        }
+                        
+                    }, 1000);
+                }
+
+                stopWaitingTimer() {
+                    if (this.waitingTimerInterval) {
+                        clearInterval(this.waitingTimerInterval);
+                        this.waitingTimerInterval = null;
+                        this.waitingStartTime = null;
+                    }
+                }
+
+                async joinSpecificGame() {
+                    const playerName = document.getElementById('playerNameInput').value.trim();
+                    const gameId = document.getElementById('gameIdInput').value.trim();
+                    if (!playerName) { alert('Please enter your name'); return; }
+                    if (!gameId) { alert('Please enter a game ID'); return; }
+                    this.playerName = playerName;
+                    this.gameId = gameId;
+                    try {
+                        await this.connectToServer();
+                        const joinMessage = { type: 'join', playerId: this.sessionId, playerName: this.playerName };
+                        this.subscribeToGame(this.gameId);
+                        this.stompClient.send(`/app/game/${this.gameId}/join`, {}, JSON.stringify(joinMessage));
+                        this.updateGameInfo(`Attempting to join game ${this.gameId}...`);
+                        closeMultiplayerMenu();
+                    } catch (error) {
+                        console.error('Error joining specific game:', error);
+                        alert('Failed to connect to game. Make sure the server is running and the game ID is correct.');
+                    }
+                }
+
+                handleGameJoined(gameState) {
+                    this.isMultiplayer = true;
+                    this.gameId = gameState.gameId;
+                    
+                    console.log('Game state received:', gameState);
+                    console.log('My player ID:', this.playerId);
+                    
+                    // Fixed player color assignment - backend sends Player objects with 'id' field
+                    if (gameState.whitePlayer && gameState.whitePlayer.id === this.sessionId) {
+                        this.playerColor = 'white';
+                    } else if (gameState.blackPlayer && gameState.blackPlayer.id === this.sessionId) {
+                        this.playerColor = 'black';
+                    } else {
+                        // Fallback: assign based on available slots
+                        if (!gameState.whitePlayer) {
+                            this.playerColor = 'white';
+                        } else if (!gameState.blackPlayer) {
+                            this.playerColor = 'black';
+                        } else {
+                            console.error('Could not determine player color!');
+                            this.playerColor = null;
+                        }
+                    }
+                    
+                    // Critical check to ensure player color was assigned
+                    if (!this.playerColor) {
+                        console.error('Player color assignment failed! GameState:', gameState);
+                        this.updateGameInfo('Error: Could not determine your color. Try rejoining the game.');
+                        return;
+                    }
+                    
+                    console.log('Final player color assignment:', this.playerColor);
+                    
+                    this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
+                    this.gameStarted = gameState.gameStatus === 'active' && this.bothPlayersReady;
+                    this.updateControlStates();
+                    
+                    if (!this.bothPlayersReady) {
+                        this.updateGameInfo(`Waiting for opponent... Share game ID: ${this.gameId}`);
+                    } else {
+                        this.updateGameInfo(`Game ready. You are ${this.playerColor}. ${this.currentPlayer === 'white' ? 'White' : 'Black'} to move.`);
+                    }
+                }
+
+                handleRemoteMove(message) {
+                    if (message.move) {
+                        const move = message.move;
+                        this.applyMoveFromServer(move);
+                        if (message.gameState) {
+                            this.updateFromGameState(message.gameState);
+                        }
+                    }
+                }
+
+                applyMoveFromServer(move) {
+                    const piece = this.board[move.fromRow][move.fromCol];
+                    const capturedPiece = this.board[move.toRow][move.toCol];
+                    if (capturedPiece) this.capturedPieces[capturedPiece.color].push(capturedPiece);
+                    this.board[move.toRow][move.toCol] = piece;
+                    this.board[move.fromRow][move.fromCol] = null;
+                    if (piece && piece.type === 'king') this.kings[piece.color] = { row: move.toRow, col: move.toCol };
+                    this.moveHistory.push({ player: move.playerColor, notation: move.notation, fullMove: Math.floor(this.moveHistory.length / 2) + 1 });
+                    this.updateDisplay();
+                }
+
+                // Add this method to your frontend ChessGame class
+                updateBoardFromServer(serverBoardState) {
+                    try {
+                        console.log('Syncing board from server:', serverBoardState);
+                        const boardData = JSON.parse(serverBoardState);
+                        const serverBoard = boardData.board;
+                        
+                        // Convert server format to frontend format
+                        for (let row = 0; row < 8; row++) {
+                            for (let col = 0; col < 8; col++) {
+                                if (serverBoard[row][col]) {
+                                    const [color, type] = serverBoard[row][col].split('_');
+                                    this.board[row][col] = { type, color };
+                                } else {
+                                    this.board[row][col] = null;
+                                }
+                            }
+                        }
+                        
+                        // Update kings positions
+                        this.updateKingsFromBoard();
+                        console.log('Board synced successfully from server');
+                    } catch (error) {
+                        console.error('Failed to sync board from server:', error);
+                    }
+                }
 
 
                 updateFromGameState(gameState) {
@@ -1198,728 +1015,714 @@ updateBoardFromServer(serverBoardState) {
                 this.updateDisplay();
             }
 
-updateKingsFromBoard() {
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            const piece = this.board[row][col];
-            if (piece && piece.type === 'king') {
-                this.kings[piece.color] = { row, col };
+            updateKingsFromBoard() {
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        const piece = this.board[row][col];
+                        if (piece && piece.type === 'king') {
+                            this.kings[piece.color] = { row, col };
+                        }
+                    }
+                }
             }
-        }
-    }
-}
-
-    // // Modify your updateFromGameState method
-    // updateFromGameState(gameState) {
-    //         if (!gameState) return;
-            
-    //         // Sync board state from server
-    //         if (gameState.boardState) {
-    //             this.updateBoardFromServer(gameState.boardState);
-    //         }
-            
-    //         // Rest of your existing code...
-    //         this.bothPlayersReady = !!(gameState.whitePlayer && gameState.blackPlayer);
-    //         this.currentPlayer = gameState.currentTurn;
-    //         // ... etc
-    //     }
 
             sendMove(fromRow, fromCol, toRow, toCol) {
-    console.log('sendMove called with:', { fromRow, fromCol, toRow, toCol });
-    
-    if (!this.isMultiplayer || !this.stompClient || !this.connected) {
-        console.error('Cannot send move:', {
-            multiplayer: this.isMultiplayer, 
-            stompClient: !!this.stompClient, 
-            connected: this.connected
-        });
-        this.updateGameInfo('Error: Not connected to multiplayer server');
-        return;
-    }
-    
-    if (!this.bothPlayersReady) {
-        this.updateGameInfo('Waiting for opponent to join...');
-        return;
-    }
-    
-    if (!this.playerColor) {
-        console.error('Player color not set when sending move!');
-        this.updateGameInfo('Error: Player color not assigned');
-        return;
-    }
-    
-    if (this.playerColor !== this.currentPlayer) {
-        this.updateGameInfo('It\'s not your turn!');
-        return;
-    }
-    
-    const piece = this.board[fromRow][fromCol];
-    
-    if (!piece) {
-        console.error('No piece at source square:', fromRow, fromCol);
-        this.updateGameInfo('Error: No piece at selected square');
-        return;
-    }
-    
-    if (piece.color !== this.playerColor) {
-        this.updateGameInfo('You can only move your own pieces!');
-        return;
-    }
-    
-    const capturedPiece = this.board[toRow][toCol];
-    
-    const move = {
-        fromRow, fromCol, toRow, toCol,
-        playerId: this.sessionId,
-        playerColor: this.playerColor,
-        piece: piece.type,
-        capturedPiece: capturedPiece ? capturedPiece.type : null,
-        notation: this.generateNotation(fromRow, fromCol, toRow, toCol),
-        timestamp: new Date().toISOString()
-    };
-    
-    const moveMessage = { type: 'move', playerId: this.sessionId, move };
-    console.log('Sending move to server:', moveMessage);
-    
-    try {
-        this.stompClient.send(`/app/game/${this.gameId}/move`, {}, JSON.stringify(moveMessage));
-        console.log('Move sent successfully');
-        
-        // Temporarily disable moves until server response
-        this.clearSelection();
-    } catch (error) {
-        console.error('Error sending move:', error);
-        this.updateGameInfo('Error sending move to server');
-    }
-}
-
-    generateNotation(fromRow, fromCol, toRow, toCol) {
-        const piece = this.board[fromRow][fromCol];
-        const captured = this.board[toRow][toCol];
-        const fromSquare = String.fromCharCode(97 + fromCol) + (8 - fromRow);
-        const toSquare = String.fromCharCode(97 + toCol) + (8 - toRow);
-        let notation = '';
-        if (piece.type === 'pawn') {
-            notation = captured ? (fromSquare[0] + 'x' + toSquare) : toSquare;
-        } else {
-            const pieceSymbol = piece.type.charAt(0).toUpperCase();
-            notation = pieceSymbol + (captured ? ('x' + toSquare) : toSquare);
-        }
-        return notation;
-    }
-
-    handleGameEnd(gameState) {
-        this.gameOver = true;
-        const winner = gameState.winner;
-        const message = winner === 'draw' ? 'Game ended in a draw' : `${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`;
-        document.getElementById('gameStatus').innerHTML = `<span class="checkmate">${message}</span>`;
-        this.updateControlStates();
-    }
-
-    resign() {
-        if (this.gameOver) return;
-        const loser = this.isMultiplayer ? this.playerColor : this.currentPlayer;
-        const winner = loser === 'white' ? 'black' : 'white';
-        this.gameOver = true;
-        this.stopTimer?.();
-        document.getElementById('gameStatus').innerHTML = `<span class="checkmate">${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by resignation</span>`;
-        if (this.isMultiplayer && this.stompClient && this.connected && this.gameId) {
-            const msg = { type: 'resign', playerId: this.playerId };
-            this.stompClient.send(`/app/game/${this.gameId}/resign`, {}, JSON.stringify(msg));
-        }
-        this.updateControlStates();
-    }
-
-    offerDraw() {
-        if (this.gameOver) return;
-        if (!this.isMultiplayer) {
-            // Local: immediate draw confirmation
-            this.gameOver = true;
-            this.stopTimer?.();
-            document.getElementById('gameStatus').innerHTML = `<span class="checkmate">Game ended in a draw (mutual agreement)</span>`;
-            return;
-        }
-        if (this.isMultiplayer && this.stompClient && this.connected && this.gameId) {
-            const msg = { type: 'drawOffer', playerId: this.playerId };
-            this.stompClient.send(`/app/game/${this.gameId}/draw-offer`, {}, JSON.stringify(msg));
-            this.updateGameInfo('Draw offer sent. Waiting for opponent response...');
-        }
-    }
-
-    resetToLocal() {
-        this.isMultiplayer = false;
-        this.disconnectFromServer();
-        this.gameId = null;
-        this.playerColor = null;
-        this.updateGameStatus('Local Game Mode');
-        this.updateGameInfo('');
-        this.updateControlStates();
-    }
-
-    initializeBoard() {
-        const board = Array(8).fill(null).map(() => Array(8).fill(null));
-        for (let col = 0; col < 8; col++) {
-            board[1][col] = { type: 'pawn', color: 'black' };
-            board[6][col] = { type: 'pawn', color: 'white' };
-        }
-        const backRow = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
-        for (let col = 0; col < 8; col++) {
-            board[0][col] = { type: backRow[col], color: 'black' };
-            board[7][col] = { type: backRow[col], color: 'white' };
-        }
-        return board;
-    }
-
-   initializeGame() {
-        this.renderBoard();
-        this.updateStatus();
-        this.setupTimer();
-        if (this.timerEnabled && (!this.isMultiplayer || this.gameStarted)) {
-            this.startTimer();
-        }
-        // Removed per-instance DOM event listeners to avoid stale handlers across New Game resets
-    }
-
-    renderBoard() {
-        const chessboard = document.getElementById('chessboard');
-        chessboard.innerHTML = '';
-        const flipBoard =this.isMultiplayer && this.playerColor === 'black';
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const actualRow =flipBoard ? 7 - row : row;
-                const actualCol =flipBoard ? 7 -col : col;
-                const square = document.createElement('div');
-                square.className = `square ${(actualRow + actualCol) % 2 === 0 ? 'light' : 'dark'}`;
-                square.dataset.actualRow = actualRow;
-                square.dataset.actualCol = actualCol;
-                square.onclick = () => this.handleSquareClick(actualRow, actualCol);
-                const piece = this.board[actualRow][actualCol];
-                if (piece) {
-                    const pieceElement = document.createElement('span');
-                    pieceElement.className = `piece ${piece.color}`;
-                    pieceElement.textContent = this.getPieceSymbol(piece);
-                    square.appendChild(pieceElement);
+                console.log('sendMove called with:', { fromRow, fromCol, toRow, toCol });
+                
+                if (!this.isMultiplayer || !this.stompClient || !this.connected) {
+                    console.error('Cannot send move:', {
+                        multiplayer: this.isMultiplayer, 
+                        stompClient: !!this.stompClient, 
+                        connected: this.connected
+                    });
+                    this.updateGameInfo('Error: Not connected to multiplayer server');
+                    return;
                 }
-                chessboard.appendChild(square);
-            }
-        }
-    }
-
-    getPieceSymbol(piece) {
-        const symbols = {
-            white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
-            black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' }
-        };
-
-         if (this.isMultiplayer && this.playerColor) {
-        // Show your pieces as white symbols, opponent pieces as black symbols
-        const displayColor = (piece.color === this.playerColor) ? 'white' : 'black';
-        return symbols[displayColor][piece.type];
-    }
-        return symbols[piece.color][piece.type];
-    }
-
-handleSquareClick(row, col) {
-    if (this.gameOver || this.pendingPromotion) return;
-    
-    // Enhanced debugging
-    console.log('=== CLICK DEBUG ===');
-    console.log('isMultiplayer:', this.isMultiplayer);
-    console.log('bothPlayersReady:', this.bothPlayersReady);
-    console.log('playerColor:', this.playerColor);
-    console.log('currentPlayer:', this.currentPlayer);
-    console.log('gameStarted:', this.gameStarted);
-    console.log('clicked piece:', this.board[row][col]);
-    console.log('==================');
-    
-    // Multiplayer validation with better debugging
-    if (this.isMultiplayer) {
-        if (!this.bothPlayersReady) { 
-            console.log('BLOCKED: Waiting for opponent');
-            this.updateGameInfo('Waiting for opponent to join...'); 
-            return; 
-        }
-        
-        if (!this.playerColor) {
-            console.log('BLOCKED: No player color');
-            this.updateGameInfo('Error: Player color not assigned. Try rejoining the game.');
-            return;
-        }
-        
-        if (this.playerColor !== this.currentPlayer) { 
-            console.log('BLOCKED: Not your turn - playerColor:', this.playerColor, 'currentPlayer:', this.currentPlayer);
-            this.updateGameInfo(`It's not your turn! You are ${this.playerColor}, current turn: ${this.currentPlayer}`); 
-            return; 
-        }
-    }
-    
-    const piece = this.board[row][col];
-    console.log('Clicked piece:', piece);
-            
-    if (this.selectedSquare) {
-        const [selectedRow, selectedCol] = this.selectedSquare;
-        
-        if (row === selectedRow && col === selectedCol) { 
-            this.clearSelection(); 
-            return; 
-        }
-        
-        if (this.isValidMove(selectedRow, selectedCol, row, col)) {
-            if (this.isMultiplayer) { 
-                console.log('Sending move to server...');
-                this.sendMove(selectedRow, selectedCol, row, col); 
-            } else { 
-                this.makeMove(selectedRow, selectedCol, row, col); 
-            }
-            this.clearSelection();
-        } else {
-            if (piece && piece.color === this.currentPlayer) {
-                if (!this.isMultiplayer || piece.color === this.playerColor) {
-                    this.selectSquare(row, col);
+                
+                if (!this.bothPlayersReady) {
+                    this.updateGameInfo('Waiting for opponent to join...');
+                    return;
                 }
-            } else {
-                this.clearSelection();
-            }
-        }
-    } else {
-        if (piece && piece.color === this.currentPlayer) {
-            if (!this.isMultiplayer || piece.color === this.playerColor) {
-                this.selectSquare(row, col);
-            } else {
-                this.updateGameInfo(`You can only move ${this.playerColor} pieces!`);
-            }
-        }
-    }
-}
-
-    selectSquare(row, col) {
-        this.clearHighlights();
-        this.selectedSquare = [row, col];
-        this.highlightSquare(row, col, 'selected');
-        this.highlightValidMoves(row, col);
-    }
-
-    clearSelection() { this.selectedSquare = null; this.clearHighlights(); }
-
-   highlightSquare(row, col, className) {
-       const square = document.querySelector(`[data-actual-row="${row}"][data-actual-col="${col}"]`);
-           if (square) square.classList.add(className);
-    }
-
-    clearHighlights() { document.querySelectorAll('.square').forEach(sq => sq.classList.remove('selected', 'valid-move', 'capture-move')); }
-
-    highlightValidMoves(row, col) {
-        const validMoves = this.getValidMoves(row, col);
-        validMoves.forEach(([moveRow, moveCol]) => {
-            const targetPiece = this.board[moveRow][moveCol];
-            const className = targetPiece ? 'capture-move' : 'valid-move';
-            this.highlightSquare(moveRow, moveCol, className);
-        });
-    }
-
-    getValidMoves(row, col) {
-        const piece = this.board[row][col];
-        if (!piece) return [];
-        let moves = [];
-        switch (piece.type) {
-            case 'pawn': moves = this.getPawnMoves(row, col, piece.color); break;
-            case 'rook': moves = this.getRookMoves(row, col); break;
-            case 'knight': moves = this.getKnightMoves(row, col); break;
-            case 'bishop': moves = this.getBishopMoves(row, col); break;
-            case 'queen': moves = [...this.getRookMoves(row, col), ...this.getBishopMoves(row, col)]; break;
-            case 'king': moves = this.getKingMoves(row, col); break;
-        }
-        return moves.filter(([toRow, toCol]) => !this.wouldBeInCheck(row, col, toRow, toCol, piece.color));
-    }
-
-    getPawnMoves(row, col, color) {
-        const moves = [];
-        const direction = color === 'white' ? -1 : 1;
-        const startRow = color === 'white' ? 6 : 1;
-        if (this.isValidSquare(row + direction, col) && !this.board[row + direction][col]) {
-            moves.push([row + direction, col]);
-            if (row === startRow && !this.board[row + 2 * direction][col]) moves.push([row + 2 * direction, col]);
-        }
-        for (const dcol of [-1, 1]) {
-            const newRow = row + direction;
-            const newCol = col + dcol;
-            if (this.isValidSquare(newRow, newCol)) {
-                const targetPiece = this.board[newRow][newCol];
-                if (targetPiece && targetPiece.color !== color) moves.push([newRow, newCol]);
-                else if (this.isEnPassant(row, col, newRow, newCol, color)) moves.push([newRow, newCol]);
-            }
-        }
-        return moves;
-    }
-
-    getRookMoves(row, col) {
-        const moves = [];
-        const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        for (const [drow, dcol] of directions) {
-            for (let i = 1; i < 8; i++) {
-                const newRow = row + i * drow;
-                const newCol = col + i * dcol;
-                if (!this.isValidSquare(newRow, newCol)) break;
-                const targetPiece = this.board[newRow][newCol];
-                if (!targetPiece) moves.push([newRow, newCol]);
-                else { if (targetPiece.color !== this.board[row][col].color) moves.push([newRow, newCol]); break; }
-            }
-        }
-        return moves;
-    }
-
-    getBishopMoves(row, col) {
-        const moves = [];
-        const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-        for (const [drow, dcol] of directions) {
-            for (let i = 1; i < 8; i++) {
-                const newRow = row + i * drow;
-                const newCol = col + i * dcol;
-                if (!this.isValidSquare(newRow, newCol)) break;
-                const targetPiece = this.board[newRow][newCol];
-                if (!targetPiece) moves.push([newRow, newCol]);
-                else { if (targetPiece.color !== this.board[row][col].color) moves.push([newRow, newCol]); break; }
-            }
-        }
-        return moves;
-    }
-
-    getKnightMoves(row, col) {
-        const moves = [];
-        const knightMoves = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
-        for (const [drow, dcol] of knightMoves) {
-            const newRow = row + drow;
-            const newCol = col + dcol;
-            if (this.isValidSquare(newRow, newCol)) {
-                const targetPiece = this.board[newRow][newCol];
-                if (!targetPiece || targetPiece.color !== this.board[row][col].color) moves.push([newRow, newCol]);
-            }
-        }
-        return moves;
-    }
-
-    getKingMoves(row, col) {
-        const moves = [];
-        const kingMoves = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
-        for (const [drow, dcol] of kingMoves) {
-            const newRow = row + drow;
-            const newCol = col + dcol;
-            if (this.isValidSquare(newRow, newCol)) {
-                const targetPiece = this.board[newRow][newCol];
-                if (!targetPiece || targetPiece.color !== this.board[row][col].color) moves.push([newRow, newCol]);
-            }
-        }
-        if (this.canCastle(row, col, 'kingside')) moves.push([row, col + 2]);
-        if (this.canCastle(row, col, 'queenside')) moves.push([row, col - 2]);
-        return moves;
-    }
-
-    canCastle(kingRow, kingCol, side) {
-        const piece = this.board[kingRow][kingCol];
-        if (!piece || piece.type !== 'king') return false;
-        const color = piece.color;
-        const expectedRow = color === 'white' ? 7 : 0;
-        const expectedCol = 4;
-        if (kingRow !== expectedRow || kingCol !== expectedCol) return false;
-        const enemyColor = color === 'white' ? 'black' : 'white';
-        if (this.isSquareAttacked(kingRow, kingCol, enemyColor)) return false;
-        const rookCol = side === 'kingside' ? 7 : 0;
-        const rook = this.board[expectedRow][rookCol];
-        if (!rook || rook.type !== 'rook' || rook.color !== color) return false;
-        const startCol = side === 'kingside' ? kingCol + 1 : rookCol + 1;
-        const endCol = side === 'kingside' ? rookCol : kingCol;
-        for (let col = startCol; col < endCol; col++) {
-            if (this.board[expectedRow][col]) return false;
-            if (col >= kingCol - 1 && col <= kingCol + 1) {
-                if (this.isSquareAttacked(expectedRow, col, enemyColor)) return false;
-            }
-        }
-        return true;
-    }
-
-    isValidSquare(row, col) { return row >= 0 && row < 8 && col >= 0 && col < 8; }
-    isValidMove(fromRow, fromCol, toRow, toCol) { return this.getValidMoves(fromRow, fromCol).some(([r, c]) => r === toRow && c === toCol); }
-
-    wouldBeInCheck(fromRow, fromCol, toRow, toCol, color) {
-        const originalPiece = this.board[toRow][toCol];
-        const movingPiece = this.board[fromRow][fromCol];
-        this.board[toRow][toCol] = movingPiece;
-        this.board[fromRow][fromCol] = null;
-        let kingRow = this.kings[color].row;
-        let kingCol = this.kings[color].col;
-        if (movingPiece.type === 'king') { kingRow = toRow; kingCol = toCol; }
-        const inCheck = this.isSquareAttacked(kingRow, kingCol, color === 'white' ? 'black' : 'white');
-        this.board[fromRow][fromCol] = movingPiece;
-        this.board[toRow][toCol] = originalPiece;
-        return inCheck;
-    }
-
-    isSquareAttacked(row, col, byColor) {
-        for (let r = 0; r < 8; r++) {
-            for (let c = 0; c < 8; c++) {
-                const piece = this.board[r][c];
-                if (piece && piece.color === byColor) {
-                    if (this.canPieceAttackSquare(r, c, row, col)) return true;
+                
+                if (!this.playerColor) {
+                    console.error('Player color not set when sending move!');
+                    this.updateGameInfo('Error: Player color not assigned');
+                    return;
+                }
+                
+                if (this.playerColor !== this.currentPlayer) {
+                    this.updateGameInfo('It\'s not your turn!');
+                    return;
+                }
+                
+                const piece = this.board[fromRow][fromCol];
+                
+                if (!piece) {
+                    console.error('No piece at source square:', fromRow, fromCol);
+                    this.updateGameInfo('Error: No piece at selected square');
+                    return;
+                }
+                
+                if (piece.color !== this.playerColor) {
+                    this.updateGameInfo('You can only move your own pieces!');
+                    return;
+                }
+                
+                const capturedPiece = this.board[toRow][toCol];
+                
+                const move = {
+                    fromRow, fromCol, toRow, toCol,
+                    playerId: this.sessionId,
+                    playerColor: this.playerColor,
+                    piece: piece.type,
+                    capturedPiece: capturedPiece ? capturedPiece.type : null,
+                    notation: this.generateNotation(fromRow, fromCol, toRow, toCol),
+                    timestamp: new Date().toISOString()
+                };
+                
+                const moveMessage = { type: 'move', playerId: this.sessionId, move };
+                console.log('Sending move to server:', moveMessage);
+                
+                try {
+                    this.stompClient.send(`/app/game/${this.gameId}/move`, {}, JSON.stringify(moveMessage));
+                    console.log('Move sent successfully');
+                    
+                    // Temporarily disable moves until server response
+                    this.clearSelection();
+                } catch (error) {
+                    console.error('Error sending move:', error);
+                    this.updateGameInfo('Error sending move to server');
                 }
             }
-        }
-        return false;
-    }
 
-    canPieceAttackSquare(pieceRow, pieceCol, targetRow, targetCol) {
-        const piece = this.board[pieceRow][pieceCol];
-        if (!piece) return false;
-        switch (piece.type) {
-            case 'pawn': return this.canPawnAttack(pieceRow, pieceCol, targetRow, targetCol, piece.color);
-            case 'rook': return this.canRookAttack(pieceRow, pieceCol, targetRow, targetCol);
-            case 'bishop': return this.canBishopAttack(pieceRow, pieceCol, targetRow, targetCol);
-            case 'knight': return this.canKnightAttack(pieceRow, pieceCol, targetRow, targetCol);
-            case 'queen': return this.canRookAttack(pieceRow, pieceCol, targetRow, targetCol) || this.canBishopAttack(pieceRow, pieceCol, targetRow, targetCol);
-            case 'king': return this.canKingAttack(pieceRow, pieceCol, targetRow, targetCol);
-            default: return false;
-        }
-    }
+                generateNotation(fromRow, fromCol, toRow, toCol) {
+                    const piece = this.board[fromRow][fromCol];
+                    const captured = this.board[toRow][toCol];
+                    const fromSquare = String.fromCharCode(97 + fromCol) + (8 - fromRow);
+                    const toSquare = String.fromCharCode(97 + toCol) + (8 - toRow);
+                    let notation = '';
+                    if (piece.type === 'pawn') {
+                        notation = captured ? (fromSquare[0] + 'x' + toSquare) : toSquare;
+                    } else {
+                        const pieceSymbol = piece.type.charAt(0).toUpperCase();
+                        notation = pieceSymbol + (captured ? ('x' + toSquare) : toSquare);
+                    }
+                    return notation;
+                }
 
-    canPawnAttack(row, col, targetRow, targetCol, color) { const direction = color === 'white' ? -1 : 1; return targetRow === row + direction && Math.abs(targetCol - col) === 1; }
-    canRookAttack(row, col, targetRow, targetCol) { if (row !== targetRow && col !== targetCol) return false; const rowStep = row === targetRow ? 0 : (targetRow > row ? 1 : -1); const colStep = col === targetCol ? 0 : (targetCol > col ? 1 : -1); let currentRow = row + rowStep; let currentCol = col + colStep; while (currentRow !== targetRow || currentCol !== targetCol) { if (this.board[currentRow][currentCol]) return false; currentRow += rowStep; currentCol += colStep; } return true; }
-    canBishopAttack(row, col, targetRow, targetCol) { if (Math.abs(targetRow - row) !== Math.abs(targetCol - col)) return false; const rowStep = targetRow > row ? 1 : -1; const colStep = targetCol > col ? 1 : -1; let currentRow = row + rowStep; let currentCol = col + colStep; while (currentRow !== targetRow || currentCol !== targetCol) { if (this.board[currentRow][currentCol]) return false; currentRow += rowStep; currentCol += colStep; } return true; }
-    canKnightAttack(row, col, targetRow, targetCol) { const rowDiff = Math.abs(targetRow - row); const colDiff = Math.abs(targetCol - col); return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2); }
-    canKingAttack(row, col, targetRow, targetCol) { const rowDiff = Math.abs(targetRow - row); const colDiff = Math.abs(targetCol - col); return rowDiff <= 1 && colDiff <= 1 && (rowDiff > 0 || colDiff > 0); }
+                handleGameEnd(gameState) {
+                    this.gameOver = true;
+                    const winner = gameState.winner;
+                    const message = winner === 'draw' ? 'Game ended in a draw' : `${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`;
+                    document.getElementById('gameStatus').innerHTML = `<span class="checkmate">${message}</span>`;
+                    this.updateControlStates();
+                }
 
-    isEnPassant(row, col, targetRow, targetCol, color) {
-        if (!this.lastMove) return false;
-        const { from, to, piece } = this.lastMove;
-        if (piece.type !== 'pawn') return false;
-        if (Math.abs(from[0] - to[0]) !== 2) return false;
-        const enemyRow = color === 'white' ? 3 : 4;
-        if (row !== enemyRow) return false;
-        if (to[1] !== targetCol) return false;
-        if (to[0] !== row) return false;
-        return true;
-    }
+                resign() {
+                    if (this.gameOver) return;
+                    const loser = this.isMultiplayer ? this.playerColor : this.currentPlayer;
+                    const winner = loser === 'white' ? 'black' : 'white';
+                    this.gameOver = true;
+                    this.stopTimer?.();
+                    document.getElementById('gameStatus').innerHTML = `<span class="checkmate">${winner.charAt(0).toUpperCase() + winner.slice(1)} wins by resignation</span>`;
+                    if (this.isMultiplayer && this.stompClient && this.connected && this.gameId) {
+                        const msg = { type: 'resign', playerId: this.playerId };
+                        this.stompClient.send(`/app/game/${this.gameId}/resign`, {}, JSON.stringify(msg));
+                    }
+                    this.updateControlStates();
+                }
 
-    makeMove(fromRow, fromCol, toRow, toCol) {
-        const piece = this.board[fromRow][fromCol];
-        const capturedPiece = this.board[toRow][toCol];
-        if (piece.type === 'king' && Math.abs(toCol - fromCol) === 2) {
-            this.performCastling(fromRow, fromCol, toRow, toCol);
-            this.switchPlayer();
-            this.updateDisplay();
-            return;
-        }
-        if (piece.type === 'pawn' && this.isEnPassant(fromRow, fromCol, toRow, toCol, piece.color)) {
-            const capturedPawnRow = piece.color === 'white' ? 3 : 4;
-            const capturedPawn = this.board[capturedPawnRow][toCol];
-            this.board[capturedPawnRow][toCol] = null;
-            this.capturedPieces[capturedPawn.color].push(capturedPawn);
-        }
-        if (capturedPiece) this.capturedPieces[capturedPiece.color].push(capturedPiece);
-        this.board[toRow][toCol] = piece; this.board[fromRow][fromCol] = null;
-        if (piece.type === 'king') this.kings[piece.color] = { row: toRow, col: toCol };
-        this.lastMove = { from: [fromRow, fromCol], to: [toRow, toCol], piece: piece, captured: capturedPiece };
-        if (piece.type === 'pawn' && (toRow === 0 || toRow === 7)) { this.pendingPromotion = { row: toRow, col: toCol, color: piece.color }; this.showPromotionDialog(piece.color); return; }
-        if (!this.isMultiplayer && !this.gameStarted) { this.gameStarted = true; this.updateControlStates(); }
-        this.addMoveToHistory(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
-        this.switchPlayer();
-        this.updateDisplay();
-    }
+                offerDraw() {
+                    if (this.gameOver) return;
+                    if (!this.isMultiplayer) {
+                        // Local: immediate draw confirmation
+                        this.gameOver = true;
+                        this.stopTimer?.();
+                        document.getElementById('gameStatus').innerHTML = `<span class="checkmate">Game ended in a draw (mutual agreement)</span>`;
+                        return;
+                    }
+                    if (this.isMultiplayer && this.stompClient && this.connected && this.gameId) {
+                        const msg = { type: 'drawOffer', playerId: this.playerId };
+                        this.stompClient.send(`/app/game/${this.gameId}/draw-offer`, {}, JSON.stringify(msg));
+                        this.updateGameInfo('Draw offer sent. Waiting for opponent response...');
+                    }
+                }
 
-    performCastling(fromRow, fromCol, toRow, toCol) {
-        const king = this.board[fromRow][fromCol];
-        const side = toCol > fromCol ? 'kingside' : 'queenside';
-        const rookFromCol = side === 'kingside' ? 7 : 0;
-        const rookToCol = side === 'kingside' ? 5 : 3;
-        this.board[toRow][toCol] = king; this.board[fromRow][fromCol] = null; this.kings[king.color] = { row: toRow, col: toCol };
-        const rook = this.board[fromRow][rookFromCol]; this.board[fromRow][rookToCol] = rook; this.board[fromRow][rookFromCol] = null;
-        const notation = side === 'kingside' ? 'O-O' : 'O-O-O';
-        this.moveHistory.push({ player: this.currentPlayer, notation: notation, fullMove: Math.floor(this.moveHistory.length / 2) + 1 });
-    }
+                resetToLocal() {
+                    this.isMultiplayer = false;
+                    this.disconnectFromServer();
+                    this.gameId = null;
+                    this.playerColor = null;
+                    this.updateGameStatus('Local Game Mode');
+                    this.updateGameInfo('');
+                    this.updateControlStates();
+                }
 
-    showPromotionDialog(color) {
-        const modal = document.getElementById('promotionModal');
-        const options = document.getElementById('promotionOptions');
-        options.innerHTML = '';
-        const pieces = ['queen', 'rook', 'bishop', 'knight'];
-        pieces.forEach(pieceType => {
-            const option = document.createElement('div');
-            option.className = 'promotion-piece';
-            option.textContent = this.getPieceSymbol({ type: pieceType, color: color });
-            option.onclick = () => this.promoteTopiece(pieceType);
-            options.appendChild(option);
-        });
-        modal.style.display = 'flex';
-    }
+                initializeBoard() {
+                    const board = Array(8).fill(null).map(() => Array(8).fill(null));
+                    for (let col = 0; col < 8; col++) {
+                        board[1][col] = { type: 'pawn', color: 'black' };
+                        board[6][col] = { type: 'pawn', color: 'white' };
+                    }
+                    const backRow = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
+                    for (let col = 0; col < 8; col++) {
+                        board[0][col] = { type: backRow[col], color: 'black' };
+                        board[7][col] = { type: backRow[col], color: 'white' };
+                    }
+                    return board;
+                }
 
-    promoteTopiece(pieceType) {
-        const { row, col, color } = this.pendingPromotion;
-        this.board[row][col] = { type: pieceType, color: color };
-        const moveCount = this.moveHistory.length;
-        if (moveCount > 0) this.moveHistory[moveCount - 1].notation += '=' + pieceType.charAt(0).toUpperCase();
-        this.pendingPromotion = null;
-        document.getElementById('promotionModal').style.display = 'none';
-        this.switchPlayer();
-        this.updateDisplay();
-    }
+                initializeGame() {
+                        this.renderBoard();
+                        this.updateStatus();
+                        this.setupTimer();
+                        if (this.timerEnabled && (!this.isMultiplayer || this.gameStarted)) {
+                            this.startTimer();
+                        }
+                        // Removed per-instance DOM event listeners to avoid stale handlers across New Game resets
+                    }
 
-    addMoveToHistory(fromRow, fromCol, toRow, toCol, piece, captured) {
-        const fromSquare = String.fromCharCode(97 + fromCol) + (8 - fromRow);
-        const toSquare = String.fromCharCode(97 + toCol) + (8 - toRow);
-        let notation = '';
-        if (piece.type === 'pawn') notation = captured ? (fromSquare[0] + 'x' + toSquare) : toSquare;
-        else {
-            const pieceSymbol = piece.type.charAt(0).toUpperCase();
-            notation = pieceSymbol + (captured ? ('x' + toSquare) : toSquare);
-        }
-        this.moveHistory.push({ player: this.currentPlayer, notation: notation, fullMove: Math.floor(this.moveHistory.length / 2) + 1 });
-    }
+                    renderBoard() {
+                        const chessboard = document.getElementById('chessboard');
+                        chessboard.innerHTML = '';
+                        const flipBoard =this.isMultiplayer && this.playerColor === 'black';
+                        for (let row = 0; row < 8; row++) {
+                            for (let col = 0; col < 8; col++) {
+                                const actualRow =flipBoard ? 7 - row : row;
+                                const actualCol =flipBoard ? 7 -col : col;
+                                const square = document.createElement('div');
+                                square.className = `square ${(actualRow + actualCol) % 2 === 0 ? 'light' : 'dark'}`;
+                                square.dataset.actualRow = actualRow;
+                                square.dataset.actualCol = actualCol;
+                                square.onclick = () => this.handleSquareClick(actualRow, actualCol);
+                                const piece = this.board[actualRow][actualCol];
+                                if (piece) {
+                                    const pieceElement = document.createElement('span');
+                                    pieceElement.className = `piece ${piece.color}`;
+                                    pieceElement.textContent = this.getPieceSymbol(piece);
+                                    square.appendChild(pieceElement);
+                                }
+                                chessboard.appendChild(square);
+                            }
+                        }
+                    }
 
-    switchPlayer() {
-        this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-        if (this.timerEnabled && this.gameStarted) {
-            if (!this.timerInterval) this.startTimer();
-            else this.updateTimerDisplay();
-        }
-    }
+                    getPieceSymbol(piece) {
+                        const symbols = {
+                            white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
+                            black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' }
+                        };
 
-    updateDisplay() {
-        this.renderBoard();
-        this.updateStatus();
-        this.updateCapturedPieces();
-        this.updateMoveHistory();
-    }
+                        if (this.isMultiplayer && this.playerColor) {
+                        // Show your pieces as white symbols, opponent pieces as black symbols
+                        const displayColor = (piece.color === this.playerColor) ? 'white' : 'black';
+                        return symbols[displayColor][piece.type];
+                    }
+                        return symbols[piece.color][piece.type];
+                    }
 
-    updateStatus() {
-        const statusElement = document.getElementById('gameStatus');
-        const currentPlayerElement = document.getElementById('currentPlayer');
-        if (this.gameOver) return;
-        const enemyColor = this.currentPlayer === 'white' ? 'black' : 'white';
-        const kingPos = this.kings[this.currentPlayer];
-        const inCheck = this.isSquareAttacked(kingPos.row, kingPos.col, enemyColor);
-        if (inCheck) {
-            if (this.isCheckmate(this.currentPlayer)) {
-                statusElement.innerHTML = `<span class="checkmate">Checkmate! ${enemyColor.charAt(0).toUpperCase() + enemyColor.slice(1)} wins!</span>`;
-                this.gameOver = true; return;
-            } else {
-                statusElement.innerHTML = `<span class="check-warning">${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)} is in check!</span>`;
-            }
-        } else if (this.isStalemate(this.currentPlayer)) {
-            statusElement.innerHTML = 'Stalemate! The game is a draw.';
-            this.gameOver = true; return;
-        } else {
-            statusElement.textContent = '';
-        }
-        const playerText = this.isMultiplayer ? `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)}'s Turn` + (this.playerColor ? ` (You are ${this.playerColor})` : '') : `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)}'s Turn`;
-        currentPlayerElement.textContent = playerText;
-    }
+                handleSquareClick(row, col) {
+                    if (this.gameOver || this.pendingPromotion) return;
+                    
+                    // Enhanced debugging
+                    console.log('=== CLICK DEBUG ===');
+                    console.log('isMultiplayer:', this.isMultiplayer);
+                    console.log('bothPlayersReady:', this.bothPlayersReady);
+                    console.log('playerColor:', this.playerColor);
+                    console.log('currentPlayer:', this.currentPlayer);
+                    console.log('gameStarted:', this.gameStarted);
+                    console.log('clicked piece:', this.board[row][col]);
+                    console.log('==================');
+                    
+                    // Multiplayer validation with better debugging
+                    if (this.isMultiplayer) {
+                        if (!this.bothPlayersReady) { 
+                            console.log('BLOCKED: Waiting for opponent');
+                            this.updateGameInfo('Waiting for opponent to join...'); 
+                            return; 
+                        }
+                        
+                        if (!this.playerColor) {
+                            console.log('BLOCKED: No player color');
+                            this.updateGameInfo('Error: Player color not assigned. Try rejoining the game.');
+                            return;
+                        }
+                        
+                        if (this.playerColor !== this.currentPlayer) { 
+                            console.log('BLOCKED: Not your turn - playerColor:', this.playerColor, 'currentPlayer:', this.currentPlayer);
+                            this.updateGameInfo(`It's not your turn! You are ${this.playerColor}, current turn: ${this.currentPlayer}`); 
+                            return; 
+                        }
+                    }
+                    
+                    const piece = this.board[row][col];
+                    console.log('Clicked piece:', piece);
+                            
+                    if (this.selectedSquare) {
+                        const [selectedRow, selectedCol] = this.selectedSquare;
+                        
+                        if (row === selectedRow && col === selectedCol) { 
+                            this.clearSelection(); 
+                            return; 
+                        }
+                        
+                        if (this.isValidMove(selectedRow, selectedCol, row, col)) {
+                            if (this.isMultiplayer) { 
+                                console.log('Sending move to server...');
+                                this.sendMove(selectedRow, selectedCol, row, col); 
+                            } else { 
+                                this.makeMove(selectedRow, selectedCol, row, col); 
+                            }
+                            this.clearSelection();
+                        } else {
+                            if (piece && piece.color === this.currentPlayer) {
+                                if (!this.isMultiplayer || piece.color === this.playerColor) {
+                                    this.selectSquare(row, col);
+                                }
+                            } else {
+                                this.clearSelection();
+                            }
+                        }
+                    } else {
+                        if (piece && piece.color === this.currentPlayer) {
+                            if (!this.isMultiplayer || piece.color === this.playerColor) {
+                                this.selectSquare(row, col);
+                            } else {
+                                this.updateGameInfo(`You can only move ${this.playerColor} pieces!`);
+                            }
+                        }
+                    }
+                }
 
-    isCheckmate(color) {
-        const kingPos = this.kings[color];
-        const enemyColor = color === 'white' ? 'black' : 'white';
-        if (!this.isSquareAttacked(kingPos.row, kingPos.col, enemyColor)) return false;
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = this.board[row][col];
-                if (piece && piece.color === color) {
-                    const validMoves = this.getValidMoves(row, col);
-                    if (validMoves.length > 0) return false;
+                    selectSquare(row, col) {
+                        this.clearHighlights();
+                        this.selectedSquare = [row, col];
+                        this.highlightSquare(row, col, 'selected');
+                        this.highlightValidMoves(row, col);
+                    }
+
+                    clearSelection() { this.selectedSquare = null; this.clearHighlights(); }
+
+                highlightSquare(row, col, className) {
+                    const square = document.querySelector(`[data-actual-row="${row}"][data-actual-col="${col}"]`);
+                        if (square) square.classList.add(className);
+                    }
+
+                    clearHighlights() { document.querySelectorAll('.square').forEach(sq => sq.classList.remove('selected', 'valid-move', 'capture-move')); }
+
+                    highlightValidMoves(row, col) {
+                        const validMoves = this.getValidMoves(row, col);
+                        validMoves.forEach(([moveRow, moveCol]) => {
+                            const targetPiece = this.board[moveRow][moveCol];
+                            const className = targetPiece ? 'capture-move' : 'valid-move';
+                            this.highlightSquare(moveRow, moveCol, className);
+                        });
+                    }
+
+                getValidMoves(row, col) {
+                    const piece = this.board[row][col];
+                    if (!piece) return [];
+                    let moves = [];
+                    switch (piece.type) {
+                        case 'pawn': moves = this.getPawnMoves(row, col, piece.color); break;
+                        case 'rook': moves = this.getRookMoves(row, col); break;
+                        case 'knight': moves = this.getKnightMoves(row, col); break;
+                        case 'bishop': moves = this.getBishopMoves(row, col); break;
+                        case 'queen': moves = [...this.getRookMoves(row, col), ...this.getBishopMoves(row, col)]; break;
+                        case 'king': moves = this.getKingMoves(row, col); break;
+                    }
+                    return moves.filter(([toRow, toCol]) => !this.wouldBeInCheck(row, col, toRow, toCol, piece.color));
+                }
+
+                getPawnMoves(row, col, color) {
+                    const moves = [];
+                    const direction = color === 'white' ? -1 : 1;
+                    const startRow = color === 'white' ? 6 : 1;
+                    if (this.isValidSquare(row + direction, col) && !this.board[row + direction][col]) {
+                        moves.push([row + direction, col]);
+                        if (row === startRow && !this.board[row + 2 * direction][col]) moves.push([row + 2 * direction, col]);
+                    }
+                    for (const dcol of [-1, 1]) {
+                        const newRow = row + direction;
+                        const newCol = col + dcol;
+                        if (this.isValidSquare(newRow, newCol)) {
+                            const targetPiece = this.board[newRow][newCol];
+                            if (targetPiece && targetPiece.color !== color) moves.push([newRow, newCol]);
+                            else if (this.isEnPassant(row, col, newRow, newCol, color)) moves.push([newRow, newCol]);
+                        }
+                    }
+                    return moves;
+                }
+
+                getRookMoves(row, col) {
+                    const moves = [];
+                    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                    for (const [drow, dcol] of directions) {
+                        for (let i = 1; i < 8; i++) {
+                            const newRow = row + i * drow;
+                            const newCol = col + i * dcol;
+                            if (!this.isValidSquare(newRow, newCol)) break;
+                            const targetPiece = this.board[newRow][newCol];
+                            if (!targetPiece) moves.push([newRow, newCol]);
+                            else { if (targetPiece.color !== this.board[row][col].color) moves.push([newRow, newCol]); break; }
+                        }
+                    }
+                    return moves;
+                }
+
+                getBishopMoves(row, col) {
+                    const moves = [];
+                    const directions = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+                    for (const [drow, dcol] of directions) {
+                        for (let i = 1; i < 8; i++) {
+                            const newRow = row + i * drow;
+                            const newCol = col + i * dcol;
+                            if (!this.isValidSquare(newRow, newCol)) break;
+                            const targetPiece = this.board[newRow][newCol];
+                            if (!targetPiece) moves.push([newRow, newCol]);
+                            else { if (targetPiece.color !== this.board[row][col].color) moves.push([newRow, newCol]); break; }
+                        }
+                    }
+                    return moves;
+                }
+
+                getKnightMoves(row, col) {
+                    const moves = [];
+                    const knightMoves = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+                    for (const [drow, dcol] of knightMoves) {
+                        const newRow = row + drow;
+                        const newCol = col + dcol;
+                        if (this.isValidSquare(newRow, newCol)) {
+                            const targetPiece = this.board[newRow][newCol];
+                            if (!targetPiece || targetPiece.color !== this.board[row][col].color) moves.push([newRow, newCol]);
+                        }
+                    }
+                    return moves;
+                }
+
+                getKingMoves(row, col) {
+                    const moves = [];
+                    const kingMoves = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+                    for (const [drow, dcol] of kingMoves) {
+                        const newRow = row + drow;
+                        const newCol = col + dcol;
+                        if (this.isValidSquare(newRow, newCol)) {
+                            const targetPiece = this.board[newRow][newCol];
+                            if (!targetPiece || targetPiece.color !== this.board[row][col].color) moves.push([newRow, newCol]);
+                        }
+                    }
+                    if (this.canCastle(row, col, 'kingside')) moves.push([row, col + 2]);
+                    if (this.canCastle(row, col, 'queenside')) moves.push([row, col - 2]);
+                    return moves;
+                }
+
+                canCastle(kingRow, kingCol, side) {
+                    const piece = this.board[kingRow][kingCol];
+                    if (!piece || piece.type !== 'king') return false;
+                    const color = piece.color;
+                    const expectedRow = color === 'white' ? 7 : 0;
+                    const expectedCol = 4;
+                    if (kingRow !== expectedRow || kingCol !== expectedCol) return false;
+                    const enemyColor = color === 'white' ? 'black' : 'white';
+                    if (this.isSquareAttacked(kingRow, kingCol, enemyColor)) return false;
+                    const rookCol = side === 'kingside' ? 7 : 0;
+                    const rook = this.board[expectedRow][rookCol];
+                    if (!rook || rook.type !== 'rook' || rook.color !== color) return false;
+                    const startCol = side === 'kingside' ? kingCol + 1 : rookCol + 1;
+                    const endCol = side === 'kingside' ? rookCol : kingCol;
+                    for (let col = startCol; col < endCol; col++) {
+                        if (this.board[expectedRow][col]) return false;
+                        if (col >= kingCol - 1 && col <= kingCol + 1) {
+                            if (this.isSquareAttacked(expectedRow, col, enemyColor)) return false;
+                        }
+                    }
+                    return true;
+                }
+
+                isValidSquare(row, col) { return row >= 0 && row < 8 && col >= 0 && col < 8; }
+                isValidMove(fromRow, fromCol, toRow, toCol) { return this.getValidMoves(fromRow, fromCol).some(([r, c]) => r === toRow && c === toCol); }
+
+                wouldBeInCheck(fromRow, fromCol, toRow, toCol, color) {
+                    const originalPiece = this.board[toRow][toCol];
+                    const movingPiece = this.board[fromRow][fromCol];
+                    this.board[toRow][toCol] = movingPiece;
+                    this.board[fromRow][fromCol] = null;
+                    let kingRow = this.kings[color].row;
+                    let kingCol = this.kings[color].col;
+                    if (movingPiece.type === 'king') { kingRow = toRow; kingCol = toCol; }
+                    const inCheck = this.isSquareAttacked(kingRow, kingCol, color === 'white' ? 'black' : 'white');
+                    this.board[fromRow][fromCol] = movingPiece;
+                    this.board[toRow][toCol] = originalPiece;
+                    return inCheck;
+                }
+
+                isSquareAttacked(row, col, byColor) {
+                    for (let r = 0; r < 8; r++) {
+                        for (let c = 0; c < 8; c++) {
+                            const piece = this.board[r][c];
+                            if (piece && piece.color === byColor) {
+                                if (this.canPieceAttackSquare(r, c, row, col)) return true;
+                            }
+                        }
+                    }
+                    return false;
+                }
+
+                canPieceAttackSquare(pieceRow, pieceCol, targetRow, targetCol) {
+                    const piece = this.board[pieceRow][pieceCol];
+                    if (!piece) return false;
+                    switch (piece.type) {
+                        case 'pawn': return this.canPawnAttack(pieceRow, pieceCol, targetRow, targetCol, piece.color);
+                        case 'rook': return this.canRookAttack(pieceRow, pieceCol, targetRow, targetCol);
+                        case 'bishop': return this.canBishopAttack(pieceRow, pieceCol, targetRow, targetCol);
+                        case 'knight': return this.canKnightAttack(pieceRow, pieceCol, targetRow, targetCol);
+                        case 'queen': return this.canRookAttack(pieceRow, pieceCol, targetRow, targetCol) || this.canBishopAttack(pieceRow, pieceCol, targetRow, targetCol);
+                        case 'king': return this.canKingAttack(pieceRow, pieceCol, targetRow, targetCol);
+                        default: return false;
+                    }
+                }
+
+                canPawnAttack(row, col, targetRow, targetCol, color) { const direction = color === 'white' ? -1 : 1; return targetRow === row + direction && Math.abs(targetCol - col) === 1; }
+                canRookAttack(row, col, targetRow, targetCol) { if (row !== targetRow && col !== targetCol) return false; const rowStep = row === targetRow ? 0 : (targetRow > row ? 1 : -1); const colStep = col === targetCol ? 0 : (targetCol > col ? 1 : -1); let currentRow = row + rowStep; let currentCol = col + colStep; while (currentRow !== targetRow || currentCol !== targetCol) { if (this.board[currentRow][currentCol]) return false; currentRow += rowStep; currentCol += colStep; } return true; }
+                canBishopAttack(row, col, targetRow, targetCol) { if (Math.abs(targetRow - row) !== Math.abs(targetCol - col)) return false; const rowStep = targetRow > row ? 1 : -1; const colStep = targetCol > col ? 1 : -1; let currentRow = row + rowStep; let currentCol = col + colStep; while (currentRow !== targetRow || currentCol !== targetCol) { if (this.board[currentRow][currentCol]) return false; currentRow += rowStep; currentCol += colStep; } return true; }
+                canKnightAttack(row, col, targetRow, targetCol) { const rowDiff = Math.abs(targetRow - row); const colDiff = Math.abs(targetCol - col); return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2); }
+                canKingAttack(row, col, targetRow, targetCol) { const rowDiff = Math.abs(targetRow - row); const colDiff = Math.abs(targetCol - col); return rowDiff <= 1 && colDiff <= 1 && (rowDiff > 0 || colDiff > 0); }
+
+                isEnPassant(row, col, targetRow, targetCol, color) {
+                    if (!this.lastMove) return false;
+                    const { from, to, piece } = this.lastMove;
+                    if (piece.type !== 'pawn') return false;
+                    if (Math.abs(from[0] - to[0]) !== 2) return false;
+                    const enemyRow = color === 'white' ? 3 : 4;
+                    if (row !== enemyRow) return false;
+                    if (to[1] !== targetCol) return false;
+                    if (to[0] !== row) return false;
+                    return true;
+                }
+
+                makeMove(fromRow, fromCol, toRow, toCol) {
+                    const piece = this.board[fromRow][fromCol];
+                    const capturedPiece = this.board[toRow][toCol];
+                    if (piece.type === 'king' && Math.abs(toCol - fromCol) === 2) {
+                        this.performCastling(fromRow, fromCol, toRow, toCol);
+                        this.switchPlayer();
+                        this.updateDisplay();
+                        return;
+                    }
+                    if (piece.type === 'pawn' && this.isEnPassant(fromRow, fromCol, toRow, toCol, piece.color)) {
+                        const capturedPawnRow = piece.color === 'white' ? 3 : 4;
+                        const capturedPawn = this.board[capturedPawnRow][toCol];
+                        this.board[capturedPawnRow][toCol] = null;
+                        this.capturedPieces[capturedPawn.color].push(capturedPawn);
+                    }
+                    if (capturedPiece) this.capturedPieces[capturedPiece.color].push(capturedPiece);
+                    this.board[toRow][toCol] = piece; this.board[fromRow][fromCol] = null;
+                    if (piece.type === 'king') this.kings[piece.color] = { row: toRow, col: toCol };
+                    this.lastMove = { from: [fromRow, fromCol], to: [toRow, toCol], piece: piece, captured: capturedPiece };
+                    if (piece.type === 'pawn' && (toRow === 0 || toRow === 7)) { this.pendingPromotion = { row: toRow, col: toCol, color: piece.color }; this.showPromotionDialog(piece.color); return; }
+                    if (!this.isMultiplayer && !this.gameStarted) { this.gameStarted = true; this.updateControlStates(); }
+                    this.addMoveToHistory(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+                    this.switchPlayer();
+                    this.updateDisplay();
+                }
+
+                performCastling(fromRow, fromCol, toRow, toCol) {
+                    const king = this.board[fromRow][fromCol];
+                    const side = toCol > fromCol ? 'kingside' : 'queenside';
+                    const rookFromCol = side === 'kingside' ? 7 : 0;
+                    const rookToCol = side === 'kingside' ? 5 : 3;
+                    this.board[toRow][toCol] = king; this.board[fromRow][fromCol] = null; this.kings[king.color] = { row: toRow, col: toCol };
+                    const rook = this.board[fromRow][rookFromCol]; this.board[fromRow][rookToCol] = rook; this.board[fromRow][rookFromCol] = null;
+                    const notation = side === 'kingside' ? 'O-O' : 'O-O-O';
+                    this.moveHistory.push({ player: this.currentPlayer, notation: notation, fullMove: Math.floor(this.moveHistory.length / 2) + 1 });
+                }
+
+                showPromotionDialog(color) {
+                    const modal = document.getElementById('promotionModal');
+                    const options = document.getElementById('promotionOptions');
+                    options.innerHTML = '';
+                    const pieces = ['queen', 'rook', 'bishop', 'knight'];
+                    pieces.forEach(pieceType => {
+                        const option = document.createElement('div');
+                        option.className = 'promotion-piece';
+                        option.textContent = this.getPieceSymbol({ type: pieceType, color: color });
+                        option.onclick = () => this.promoteTopiece(pieceType);
+                        options.appendChild(option);
+                    });
+                    modal.style.display = 'flex';
+                }
+
+                promoteTopiece(pieceType) {
+                    const { row, col, color } = this.pendingPromotion;
+                    this.board[row][col] = { type: pieceType, color: color };
+                    const moveCount = this.moveHistory.length;
+                    if (moveCount > 0) this.moveHistory[moveCount - 1].notation += '=' + pieceType.charAt(0).toUpperCase();
+                    this.pendingPromotion = null;
+                    document.getElementById('promotionModal').style.display = 'none';
+                    this.switchPlayer();
+                    this.updateDisplay();
+                }
+
+                addMoveToHistory(fromRow, fromCol, toRow, toCol, piece, captured) {
+                    const fromSquare = String.fromCharCode(97 + fromCol) + (8 - fromRow);
+                    const toSquare = String.fromCharCode(97 + toCol) + (8 - toRow);
+                    let notation = '';
+                    if (piece.type === 'pawn') notation = captured ? (fromSquare[0] + 'x' + toSquare) : toSquare;
+                    else {
+                        const pieceSymbol = piece.type.charAt(0).toUpperCase();
+                        notation = pieceSymbol + (captured ? ('x' + toSquare) : toSquare);
+                    }
+                    this.moveHistory.push({ player: this.currentPlayer, notation: notation, fullMove: Math.floor(this.moveHistory.length / 2) + 1 });
+                }
+
+                switchPlayer() {
+                    this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+                    if (this.timerEnabled && this.gameStarted) {
+                        if (!this.timerInterval) this.startTimer();
+                        else this.updateTimerDisplay();
+                    }
+                }
+
+                updateDisplay() {
+                    this.renderBoard();
+                    this.updateStatus();
+                    this.updateCapturedPieces();
+                    this.updateMoveHistory();
+                }
+
+                updateStatus() {
+                    const statusElement = document.getElementById('gameStatus');
+                    const currentPlayerElement = document.getElementById('currentPlayer');
+                    if (this.gameOver) return;
+                    const enemyColor = this.currentPlayer === 'white' ? 'black' : 'white';
+                    const kingPos = this.kings[this.currentPlayer];
+                    const inCheck = this.isSquareAttacked(kingPos.row, kingPos.col, enemyColor);
+                    if (inCheck) {
+                        if (this.isCheckmate(this.currentPlayer)) {
+                            statusElement.innerHTML = `<span class="checkmate">Checkmate! ${enemyColor.charAt(0).toUpperCase() + enemyColor.slice(1)} wins!</span>`;
+                            this.gameOver = true; return;
+                        } else {
+                            statusElement.innerHTML = `<span class="check-warning">${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)} is in check!</span>`;
+                        }
+                    } else if (this.isStalemate(this.currentPlayer)) {
+                        statusElement.innerHTML = 'Stalemate! The game is a draw.';
+                        this.gameOver = true; return;
+                    } else {
+                        statusElement.textContent = '';
+                    }
+                    const playerText = this.isMultiplayer ? `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)}'s Turn` + (this.playerColor ? ` (You are ${this.playerColor})` : '') : `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)}'s Turn`;
+                    currentPlayerElement.textContent = playerText;
+                }
+
+                isCheckmate(color) {
+                    const kingPos = this.kings[color];
+                    const enemyColor = color === 'white' ? 'black' : 'white';
+                    if (!this.isSquareAttacked(kingPos.row, kingPos.col, enemyColor)) return false;
+                    for (let row = 0; row < 8; row++) {
+                        for (let col = 0; col < 8; col++) {
+                            const piece = this.board[row][col];
+                            if (piece && piece.color === color) {
+                                const validMoves = this.getValidMoves(row, col);
+                                if (validMoves.length > 0) return false;
+                            }
+                        }
+                    }
+                    return true;
+                }
+
+                isStalemate(color) {
+                    const kingPos = this.kings[color];
+                    const enemyColor = color === 'white' ? 'black' : 'white';
+                    if (this.isSquareAttacked(kingPos.row, kingPos.col, enemyColor)) return false;
+                    for (let row = 0; row < 8; row++) {
+                        for (let col = 0; col < 8; col++) {
+                            const piece = this.board[row][col];
+                            if (piece && piece.color === color) {
+                                const validMoves = this.getValidMoves(row, col);
+                                if (validMoves.length > 0) return false;
+                            }
+                        }
+                    }
+                    return true;
+                }
+
+                updateCapturedPieces() {
+                    const whiteElement = document.getElementById('capturedWhite');
+                    const blackElement = document.getElementById('capturedBlack');
+                    whiteElement.innerHTML = this.capturedPieces.white.map(piece => this.getPieceSymbol(piece)).join(' ');
+                    blackElement.innerHTML = this.capturedPieces.black.map(piece => this.getPieceSymbol(piece)).join(' ');
+                }
+
+                updateMoveHistory() {
+                    const movesList = document.getElementById('movesList');
+                    movesList.innerHTML = '';
+                    for (let i = 0; i < this.moveHistory.length; i += 2) {
+                        const moveNumber = Math.floor(i / 2) + 1;
+                        const whiteMove = this.moveHistory[i];
+                        const blackMove = this.moveHistory[i + 1];
+                        const numberElement = document.createElement('div');
+                        numberElement.className = 'move-number';
+                        numberElement.textContent = moveNumber + '.';
+                        movesList.appendChild(numberElement);
+                        const whiteElement = document.createElement('div');
+                        whiteElement.className = 'move-item white-move';
+                        whiteElement.textContent = whiteMove ? whiteMove.notation : '';
+                        movesList.appendChild(whiteElement);
+                        const blackElement = document.createElement('div');
+                        blackElement.className = 'move-item black-move';
+                        blackElement.textContent = blackMove ? blackMove.notation : '';
+                        movesList.appendChild(blackElement);
+                    }
+                    movesList.scrollTop = movesList.scrollHeight;
+                }
+
+                updateControlStates() {
+                    const btnNew = document.getElementById('btnNewGame');
+                    const btnMulti = document.getElementById('btnMultiplayer');
+                    const btnResign = document.getElementById('btnResign');
+                    const matchInProgress = (this.isMultiplayer && this.connected && !this.gameOver) || (!this.isMultiplayer && this.gameStarted && !this.gameOver);
+                    if (btnNew) btnNew.disabled = matchInProgress;
+                    if (btnMulti) btnMulti.disabled = matchInProgress;
+                    if (btnResign) btnResign.disabled = !matchInProgress;
                 }
             }
-        }
-        return true;
-    }
 
-    isStalemate(color) {
-        const kingPos = this.kings[color];
-        const enemyColor = color === 'white' ? 'black' : 'white';
-        if (this.isSquareAttacked(kingPos.row, kingPos.col, enemyColor)) return false;
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = this.board[row][col];
-                if (piece && piece.color === color) {
-                    const validMoves = this.getValidMoves(row, col);
-                    if (validMoves.length > 0) return false;
+            let game = new ChessGame();
+
+            // Bind timer controls once globally to the current game instance
+            (function bindTimerControlsOnce() {
+                const enableTimer = document.getElementById('enableRightTimer');
+                const timerSelect = document.getElementById('rightTimerSelect');
+                if (enableTimer) {
+                    enableTimer.addEventListener('change', () => {
+                        if (!game) return;
+                        if (enableTimer.checked && game.gameStarted) {
+                            game.updateGameInfo('You cannot enable the timer after the game has started.');
+                            enableTimer.checked = false;
+                            game.timerEnabled = false;
+                            game.updateTimerDisplay();
+                            return;
+                        }
+                        game.stopTimer();
+                        game.setupTimer();
+                        if (game.timerEnabled && game.gameStarted && !game.timerInterval) {
+                            game.startTimer();
+                        }
+                    });
                 }
-            }
-        }
-        return true;
-    }
-
-    updateCapturedPieces() {
-        const whiteElement = document.getElementById('capturedWhite');
-        const blackElement = document.getElementById('capturedBlack');
-        whiteElement.innerHTML = this.capturedPieces.white.map(piece => this.getPieceSymbol(piece)).join(' ');
-        blackElement.innerHTML = this.capturedPieces.black.map(piece => this.getPieceSymbol(piece)).join(' ');
-    }
-
-    updateMoveHistory() {
-        const movesList = document.getElementById('movesList');
-        movesList.innerHTML = '';
-        for (let i = 0; i < this.moveHistory.length; i += 2) {
-            const moveNumber = Math.floor(i / 2) + 1;
-            const whiteMove = this.moveHistory[i];
-            const blackMove = this.moveHistory[i + 1];
-            const numberElement = document.createElement('div');
-            numberElement.className = 'move-number';
-            numberElement.textContent = moveNumber + '.';
-            movesList.appendChild(numberElement);
-            const whiteElement = document.createElement('div');
-            whiteElement.className = 'move-item white-move';
-            whiteElement.textContent = whiteMove ? whiteMove.notation : '';
-            movesList.appendChild(whiteElement);
-            const blackElement = document.createElement('div');
-            blackElement.className = 'move-item black-move';
-            blackElement.textContent = blackMove ? blackMove.notation : '';
-            movesList.appendChild(blackElement);
-        }
-        movesList.scrollTop = movesList.scrollHeight;
-    }
-
-    updateControlStates() {
-        const btnNew = document.getElementById('btnNewGame');
-        const btnMulti = document.getElementById('btnMultiplayer');
-        const btnResign = document.getElementById('btnResign');
-        const matchInProgress = (this.isMultiplayer && this.connected && !this.gameOver) || (!this.isMultiplayer && this.gameStarted && !this.gameOver);
-        if (btnNew) btnNew.disabled = matchInProgress;
-        if (btnMulti) btnMulti.disabled = matchInProgress;
-        if (btnResign) btnResign.disabled = !matchInProgress;
-    }
-}
-
-let game = new ChessGame();
-
-// Bind timer controls once globally to the current game instance
-(function bindTimerControlsOnce() {
-    const enableTimer = document.getElementById('enableRightTimer');
-    const timerSelect = document.getElementById('rightTimerSelect');
-    if (enableTimer) {
-        enableTimer.addEventListener('change', () => {
-            if (!game) return;
-            if (enableTimer.checked && game.gameStarted) {
-                game.updateGameInfo('You cannot enable the timer after the game has started.');
-                enableTimer.checked = false;
-                game.timerEnabled = false;
-                game.updateTimerDisplay();
-                return;
-            }
-            game.stopTimer();
-            game.setupTimer();
-            if (game.timerEnabled && game.gameStarted && !game.timerInterval) {
-                game.startTimer();
-            }
-        });
-    }
-    if (timerSelect) {
-        timerSelect.addEventListener('change', () => {
-            if (!game) return;
-            const wasRunning = !!game.timerInterval;
-            game.stopTimer();
-            game.setupTimer();
-            if (game.timerEnabled && (game.gameStarted || game.isMultiplayer) && wasRunning) {
-                game.startTimer();
-            }
-        });
-    }
-})();
+                if (timerSelect) {
+                    timerSelect.addEventListener('change', () => {
+                        if (!game) return;
+                        const wasRunning = !!game.timerInterval;
+                        game.stopTimer();
+                        game.setupTimer();
+                        if (game.timerEnabled && (game.gameStarted || game.isMultiplayer) && wasRunning) {
+                            game.startTimer();
+                        }
+                    });
+                    }
+                }
+)();
 
 
 
